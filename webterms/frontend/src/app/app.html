@@ -1,10 +1,10 @@
 <nav class="navbar navbar-expand bg-white border-bottom sticky-top">
   <div class="container">
-    <a class="navbar-brand fw-semibold" routerLink="/documents">WebTerms</a>
+    <a class="navbar-brand fw-semibold" routerLink="/documents"><span class=""></span>WebTerms</a>
     <div class="navbar-nav gap-2">
       <a class="nav-link" routerLink="/documents" routerLinkActive="active">Documenti</a>
       <a class="nav-link" routerLink="/official-documents" routerLinkActive="active">Ufficiali</a>
-      <a class="nav-link" routerLink="/upload" routerLinkActive="active">Inserimento</a>
+      <a class="nav-link" routerLink="/upload" routerLinkActive="active">{{ isAuthenticated() ? 'Inserimento' : 'Login' }}</a>
       @if (isAuthenticated()) {
       <button type="button" class="btn btn-outline-secondary" (click)="logout()">Logout</button>
       }

@@ -13,7 +13,7 @@ flowchart LR
   U[User on WebTerms] --> L[Login local fallback]
   U --> C[Upload form + metadata]
   C --> G[GitHub Contents API]
-  G --> R[(dedandy/cima-legal-public-docs)]
+  G --> R[(CIMAFoundation/cima-legal-public-docs)]
   R --> M[legal-docs/manifests/latest.json]
   R --> F[legal-docs/files/...pdf]
   W[Web apps] --> M
