@@ -216,7 +216,7 @@ export class DocumentsApiService {
 
     // Remove entry from manifest
     const langs = manifest.latest?.[payload.platform]?.[payload.docType] || {};
-    const {[payload.lang]: _} = langs;
+    const {[payload.lang]: _, ...remainingLangs} = langs;
 
     const nextLatest = JSON.parse(JSON.stringify(manifest.latest || {}));
     delete nextLatest[payload.platform]?.[payload.docType]?.[payload.lang];
