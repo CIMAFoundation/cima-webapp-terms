@@ -47,8 +47,8 @@ export class DocumentsApiService {
             }
             if (filters.platform && doc.platform !== filters.platform) return false;
             if (filters.docType && doc.docType !== filters.docType) return false;
-            if (filters.lang && doc.lang !== filters.lang) return false;
-            return true;
+            return !(filters.lang && doc.lang !== filters.lang);
+
           })
         };
       })
@@ -216,7 +216,7 @@ export class DocumentsApiService {
 
     // Remove entry from manifest
     const langs = manifest.latest?.[payload.platform]?.[payload.docType] || {};
-    const {[payload.lang]: _, ...remainingLangs} = langs;
+    const {[payload.lang]: _} = langs;
 
     const nextLatest = JSON.parse(JSON.stringify(manifest.latest || {}));
     delete nextLatest[payload.platform]?.[payload.docType]?.[payload.lang];
