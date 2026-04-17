@@ -13,7 +13,7 @@ Frontend Angular per gestione e pubblicazione documenti legali su repository pub
 
 - Nessun backend runtime locale in `webterms`.
 - Login e configurazione piattaforme in locale (fallback statico nel FE).
-- Documenti e manifest su repo pubblico `dedandy/cima-legal-public-docs`.
+- Documenti e manifest su repo pubblico `CIMAFoundation/cima-legal-public-docs`.
 - Upload: il frontend crea commit direttamente sul repo usando GitHub token utente.
 
 ## Configurazione runtime nel FE
@@ -28,8 +28,8 @@ La pagina `Inserimento` salva in `localStorage`:
 
 Default:
 
-- Manifest URL: `https://raw.githubusercontent.com/dedandy/cima-legal-public-docs/main/legal-docs/manifests/latest.json`
-- Repo: `dedandy/cima-legal-public-docs`
+- Manifest URL: `https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json`
+- Repo: `CIMAFoundation/cima-legal-public-docs`
 - Branch: `main`
 - Documents root path: `legal-docs/files`
 - Manifest path: `legal-docs/manifests/latest.json`

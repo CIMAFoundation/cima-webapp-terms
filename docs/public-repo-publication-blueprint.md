@@ -5,7 +5,7 @@ Use `webterms` without a dedicated backend publisher service, publishing directl
 
 ## Current Topology
 - `webterms/frontend`: UI for list/official/upload.
-- Public repo: `dedandy/cima-legal-public-docs`.
+- Public repo: `CIMAFoundation/cima-legal-public-docs`.
 - No runtime backend for publication.
 
 ```mermaid

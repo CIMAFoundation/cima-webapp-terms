@@ -17,6 +17,11 @@ export class App {
     return this.auth.isAuthenticated();
   }
 
+  userRoleLabel(): string {
+    const role = this.auth.getUserRole();
+    return role ? role.toUpperCase() : 'USER';
+  }
+
   logout(): void {
     this.auth.clearToken();
     this.router.navigate(['/documents']);
