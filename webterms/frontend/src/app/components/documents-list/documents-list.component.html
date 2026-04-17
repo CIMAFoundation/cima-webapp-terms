@@ -8,7 +8,7 @@
         <th>Version</th>
         <th>Hash</th>
         <th>Download</th>
-        @if (canDelete) {
+        @if (canDelete || canHardDelete) {
           <th></th>
         }
       </tr>
@@ -16,14 +16,17 @@
     <tbody>
       @if (!documents.length) {
         <tr>
-          <td [attr.colspan]="canDelete ? 7 : 6" class="text-secondary">Nessun documento.</td>
+          <td [attr.colspan]="canDelete || canHardDelete ? 7 : 6" class="text-secondary">Nessun documento.</td>
         </tr>
       }
       @for (doc of documents; track trackById($index, doc)) {
-        <tr>
+        <tr [class.table-secondary]="isDeleted(doc)">
           <td>
             <div class="fw-semibold">{{ doc.downloadFileName || doc.originalFileName }}</div>
             <div class="small text-secondary">{{ doc.originalFileName }}</div>
+            @if (isDeleted(doc)) {
+              <div class="small text-danger">Eliminato il {{ formatDeletedDate(doc.deletedAt) }}</div>
+            }
           </td>
           <td>{{ doc.platform }} / {{ doc.docType }} / {{ doc.lang }}</td>
           <td>{{ doc.effectiveDate }}</td>
@@ -34,15 +37,34 @@
               Scarica
             </a>
           </td>
-          @if (canDelete) {
+          @if (canDelete && !isDeleted(doc)) {
             <td>
               <button
                 class="btn btn-sm btn-outline-danger"
-                [disabled]="!!doc.deletedAt"
                 (click)="deleteRequested.emit(doc.id)"
               >
-                Soft delete
+                Elimina
               </button>
+            </td>
+          }
+          @if (isDeleted(doc)) {
+            <td>
+              @if (canDelete) {
+                <button
+                  class="btn btn-sm btn-outline-success me-1"
+                  (click)="restoreRequested.emit(doc.id)"
+                >
+                  Ripristina
+                </button>
+              }
+              @if (canHardDelete) {
+                <button
+                  class="btn btn-sm btn-danger"
+                  (click)="hardDeleteRequested.emit(doc.id)"
+                >
+                  Elimina definitivamente
+                </button>
+              }
             </td>
           }
         </tr>

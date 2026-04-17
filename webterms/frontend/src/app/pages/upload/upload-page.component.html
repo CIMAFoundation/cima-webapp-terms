@@ -69,41 +69,10 @@
     <div class="card-body">
       <h2 class="h5 mb-3">Upload documenti</h2>
 
-      <form [formGroup]="uploadForm" class="row g-3 mb-3">
-        <div class="col-12 col-md-3">
-          <label class="form-label">Piattaforma</label>
-          <select class="form-select" [class.is-invalid]="hasUploadError('platform')" formControlName="platform">
-            @for (platform of platformOptions; track platform.id) {
-              <option [value]="platform.id">{{ platform.label }}</option>
-            }
-          </select>
-        </div>
-        <div class="col-12 col-md-3">
-          <label class="form-label">Tipo</label>
-          <select class="form-select" [class.is-invalid]="hasUploadError('docType')" formControlName="docType">
-            <option value="terms">terms</option>
-            <option value="privacy">privacy</option>
-            <option value="cookie">cookie</option>
-          </select>
-        </div>
-        <div class="col-12 col-md-3">
-          <label class="form-label">Lingua</label>
-          <select class="form-select" [class.is-invalid]="hasUploadError('lang')" formControlName="lang">
-            @for (lang of langOptions; track lang) {
-              <option [value]="lang">{{ lang }}</option>
-            }
-          </select>
-        </div>
-        <div class="col-12 col-md-3">
-          <label class="form-label">Data efficacia</label>
-          <input class="form-control" [class.is-invalid]="hasUploadError('effectiveDate')" type="date" formControlName="effectiveDate" />
-        </div>
-      </form>
-
       <div
         class="dropzone mb-3"
         [class.active]="dragActive"
-        [class.is-invalid]="filesMissing"
+        [class.is-invalid]="submitAttempted && queuedFiles.length === 0"
         (drop)="onDrop($event)"
         (dragover)="onDragOver($event)"
         (dragleave)="onDragLeave($event)"
@@ -112,28 +81,87 @@
         <input id="picker" class="d-none" type="file" multiple (change)="onPickFiles($event)" />
         <label for="picker" class="btn btn-outline-primary btn-sm">Seleziona file</label>
       </div>
-      @if (filesMissing) {
-        <p class="small text-danger mt-n2 mb-3">Seleziona almeno un file.</p>
+
+      @if (queuedFiles.length === 0) {
+        <p class="small text-secondary">Nessun file selezionato.</p>
+      } @else {
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width: 40%">File</th>
+                <th style="width: 15%">Piattaforma</th>
+                <th style="width: 12%">Tipo</th>
+                <th style="width: 10%">Lingua</th>
+                <th style="width: 13%">Data</th>
+                <th style="width: 10%"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (qf of queuedFiles; track trackById($index, qf)) {
+                <tr [class.table-success]="qf.status === 'done'" [class.table-danger]="qf.status === 'error'">
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="text-truncate" style="max-width: 200px;">{{ qf.file.name }}</span>
+                      @if (qf.status === 'uploading') {
+                        <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                      }
+                      @if (qf.status === 'done') {
+                        <span class="text-success">✓</span>
+                      }
+                      @if (qf.status === 'error') {
+                        <span class="text-danger" title="{{ qf.message }}">⚠</span>
+                      }
+                    </div>
+                    @if (qf.message) {
+                      <small class="text-secondary">{{ qf.message }}</small>
+                    }
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" [(ngModel)]="qf.platform" [disabled]="qf.status === 'uploading'">
+                      @for (p of platformOptions; track p.id) {
+                        <option [value]="p.id">{{ p.label }}</option>
+                      }
+                    </select>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" [(ngModel)]="qf.docType" [disabled]="qf.status === 'uploading'">
+                      <option value="terms">terms</option>
+                      <option value="privacy">privacy</option>
+                      <option value="cookie">cookie</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" [(ngModel)]="qf.lang" [disabled]="qf.status === 'uploading'">
+                      @for (lang of langOptions; track lang) {
+                        <option [value]="lang">{{ lang }}</option>
+                      }
+                    </select>
+                  </td>
+                  <td>
+                    <input type="date" class="form-control form-control-sm" [(ngModel)]="qf.effectiveDate" [disabled]="qf.status === 'uploading'" />
+                  </td>
+                  <td>
+                    <button 
+                      class="btn btn-sm btn-outline-danger" 
+                      (click)="removeQueued(qf.id)"
+                      [disabled]="qf.status === 'uploading'">
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <small class="text-secondary">{{ queuedFiles.length }} file in coda</small>
+          <button class="btn btn-primary" [disabled]="!canPublish" (click)="uploadAll()">
+            Pubblica tutti
+          </button>
+        </div>
       }
-
-      <div class="mb-3" *ngIf="queuedFiles.length; else noFiles">
-        <div class="small text-secondary mb-2">{{ queuedFiles.length }} file in coda</div>
-        <ul class="list-group">
-          @for (file of queuedFiles; track file; let i = $index) {
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <span class="text-truncate pe-2">{{ file.name }}</span>
-              <button class="btn btn-sm btn-outline-danger" (click)="removeQueued(i)">Rimuovi</button>
-            </li>
-          }
-        </ul>
-      </div>
-      <ng-template #noFiles><p class="small text-secondary mb-3">Nessun file selezionato.</p></ng-template>
-
-      <button class="btn btn-primary" [disabled]="!canPublish" (click)="uploadAll()">
-        {{ loading ? 'Pubblicazione in corso...' : 'Pubblica file in coda' }}
-      </button>
-
-      <p class="small mt-3 mb-0 text-secondary" *ngIf="uploadMessage">{{ uploadMessage }}</p>
     </div>
   </section>
 </main>

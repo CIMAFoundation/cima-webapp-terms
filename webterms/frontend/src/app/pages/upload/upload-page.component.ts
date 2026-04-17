@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { PlatformOption } from '../../services/api.models';
@@ -9,10 +9,21 @@ import { ConfigApiService } from '../../services/config-api.service';
 import { DocumentsApiService } from '../../services/documents-api.service';
 import { RuntimeConfigService } from '../../services/runtime-config.service';
 
+interface QueuedFile {
+  id: string;
+  file: File;
+  platform: string;
+  docType: 'terms' | 'privacy' | 'cookie';
+  lang: string;
+  effectiveDate: string;
+  status: 'pending' | 'uploading' | 'done' | 'error';
+  message?: string;
+}
+
 @Component({
   selector: 'app-upload-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, FormsModule],
   templateUrl: './upload-page.component.html',
   styleUrl: './upload-page.component.scss'
 })
@@ -23,13 +34,6 @@ export class UploadPageComponent {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly runtimeConfig = inject(RuntimeConfigService);
-
-  readonly uploadForm = this.fb.group({
-    platform: ['', Validators.required],
-    docType: this.fb.control<'terms' | 'privacy' | 'cookie'>('terms', Validators.required),
-    lang: ['it', Validators.required],
-    effectiveDate: ['', Validators.required]
-  });
 
   readonly githubForm = this.fb.group({
     manifestUrl: [this.runtimeConfig.getManifestUrl(), Validators.required],
@@ -42,14 +46,13 @@ export class UploadPageComponent {
     publicBaseUrl: [this.runtimeConfig.getGithubRepoConfig().publicBaseUrl, Validators.required]
   });
 
-  queuedFiles: File[] = [];
-  uploadMessage = '';
-  loading = false;
+  queuedFiles: QueuedFile[] = [];
   dragActive = false;
   showGithubConfig = false;
   submitAttempted = false;
   platformOptions: PlatformOption[] = [];
   langOptions = ['it', 'en', 'fr', 'es', 'pt'];
+  private fileCounter = 0;
 
   constructor() {
     if (!this.auth.isAuthenticated()) {
@@ -61,14 +64,14 @@ export class UploadPageComponent {
 
   onPickFiles(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.mergeFiles(input.files);
+    this.addFiles(input.files);
     input.value = '';
   }
 
   onDrop(event: DragEvent): void {
     event.preventDefault();
     this.dragActive = false;
-    this.mergeFiles(event.dataTransfer?.files ?? null);
+    this.addFiles(event.dataTransfer?.files ?? null);
   }
 
   onDragOver(event: DragEvent): void {
@@ -79,6 +82,11 @@ export class UploadPageComponent {
   onDragLeave(event: DragEvent): void {
     event.preventDefault();
     this.dragActive = false;
+  }
+
+  toggleGithubConfig(): void {
+    if (!this.canViewGithubConfig) return;
+    this.showGithubConfig = !this.showGithubConfig;
   }
 
   saveGithubSettings(): void {
@@ -94,43 +102,47 @@ export class UploadPageComponent {
       manifestPath: String(cfg.manifestPath || ''),
       publicBaseUrl: String(cfg.publicBaseUrl || '')
     });
-    this.uploadMessage = 'Configurazione GitHub salvata.';
   }
 
-  toggleGithubConfig(): void {
-    if (!this.canViewGithubConfig) return;
-    this.showGithubConfig = !this.showGithubConfig;
+  createFileEntry(file: File): QueuedFile {
+    const defaultPlatform = this.platformOptions[0]?.id || '';
+    return {
+      id: `file-${++this.fileCounter}`,
+      file,
+      platform: defaultPlatform,
+      docType: 'terms',
+      lang: 'it',
+      effectiveDate: this.getTodayDate(),
+      status: 'pending'
+    };
   }
 
-  removeQueued(index: number): void {
-    this.queuedFiles = this.queuedFiles.filter((_, idx) => idx !== index);
+  removeQueued(id: string): void {
+    this.queuedFiles = this.queuedFiles.filter((f) => f.id !== id);
   }
 
   async uploadAll(): Promise<void> {
     this.submitAttempted = true;
-    this.uploadForm.markAllAsTouched();
-    this.githubForm.markAllAsTouched();
 
-    if (!this.canPublish) {
-      this.uploadMessage = 'Compila i campi e aggiungi almeno un file.';
-      return;
-    }
+    if (!this.canPublish) return;
 
     this.saveGithubSettings();
-    this.loading = true;
-    const formValue = this.uploadForm.getRawValue();
     const github = this.githubForm.getRawValue();
-    const results: string[] = [];
 
-    for (const file of this.queuedFiles) {
+    this.queuedFiles.forEach((f) => {
+      f.status = 'uploading';
+      f.message = undefined;
+    });
+
+    for (const queuedFile of this.queuedFiles) {
       try {
         const payload = {
-          platform: String(formValue.platform || ''),
-          docType: formValue.docType || 'terms',
-          lang: String(formValue.lang || 'it'),
-          effectiveDate: String(formValue.effectiveDate || ''),
-          fileName: file.name,
-          contentBase64: await this.readFileAsBase64(file),
+          platform: queuedFile.platform,
+          docType: queuedFile.docType,
+          lang: queuedFile.lang,
+          effectiveDate: queuedFile.effectiveDate,
+          fileName: queuedFile.file.name,
+          contentBase64: await this.readFileAsBase64(queuedFile.file),
           githubToken: String(github.githubToken || ''),
           repoOwner: String(github.repoOwner || ''),
           repoName: String(github.repoName || ''),
@@ -140,20 +152,22 @@ export class UploadPageComponent {
           publicBaseUrl: String(github.publicBaseUrl || '')
         };
         const published = await this.documentsApi.publishDocument(payload);
-        results.push(`OK: ${file.name} (v${String(published.version).padStart(3, '0')})`);
+        queuedFile.status = 'done';
+        queuedFile.message = `Pubblicato v${String(published.version).padStart(3, '0')}`;
       } catch (error: any) {
+        queuedFile.status = 'error';
         const backendError = String(error?.error?.message || error?.error || '').trim();
-        if (backendError) {
-          results.push(`ERR: ${file.name} (${backendError})`);
-        } else {
-          results.push(`ERR: ${file.name} (status ${error?.status || 'unknown'})`);
-        }
+        queuedFile.message = backendError || `Errore (status ${error?.status || '?'})`;
       }
     }
 
-    this.uploadMessage = results.join(' | ');
-    this.queuedFiles = [];
-    this.loading = false;
+    setTimeout(() => {
+      this.queuedFiles = this.queuedFiles.filter((f) => f.status !== 'done');
+    }, 2000);
+  }
+
+  private getTodayDate(): string {
+    return new Date().toISOString().split('T')[0];
   }
 
   private async loadConfig(): Promise<void> {
@@ -161,20 +175,19 @@ export class UploadPageComponent {
       const cfg = await firstValueFrom(this.configApi.getInfraConfig());
       this.platformOptions = cfg.platforms || [];
       this.langOptions = cfg.languages?.length ? cfg.languages : this.langOptions;
-      const firstPlatform = this.platformOptions[0]?.id || '';
-      this.uploadForm.patchValue({ platform: firstPlatform });
     } catch {
       this.platformOptions = [];
-      this.uploadForm.patchValue({ platform: '' });
     }
   }
 
-  private mergeFiles(files: FileList | null): void {
+  private addFiles(files: FileList | null): void {
     if (!files?.length) return;
-    const existing = new Set(this.queuedFiles.map((f) => `${f.name}:${f.size}`));
+    const existing = new Set(this.queuedFiles.map((f) => `${f.file.name}:${f.file.size}`));
     for (const file of Array.from(files)) {
       const key = `${file.name}:${file.size}`;
-      if (!existing.has(key)) this.queuedFiles.push(file);
+      if (!existing.has(key)) {
+        this.queuedFiles.push(this.createFileEntry(file));
+      }
     }
   }
 
@@ -188,21 +201,17 @@ export class UploadPageComponent {
   }
 
   get canPublish(): boolean {
-    return !this.loading && this.uploadForm.valid && this.githubForm.valid && this.queuedFiles.length > 0;
-  }
-
-  hasUploadError(controlName: string): boolean {
-    const control = this.uploadForm.get(controlName) as AbstractControl | null;
-    return Boolean(control?.invalid && (control.touched || this.submitAttempted));
+    return (
+      !this.queuedFiles.some((f) => f.status === 'uploading') &&
+      this.githubForm.valid &&
+      this.queuedFiles.length > 0 &&
+      this.queuedFiles.every((f) => f.platform && f.effectiveDate)
+    );
   }
 
   hasGithubError(controlName: string): boolean {
     const control = this.githubForm.get(controlName) as AbstractControl | null;
     return Boolean(control?.invalid && (control.touched || this.submitAttempted));
-  }
-
-  get filesMissing(): boolean {
-    return this.submitAttempted && this.queuedFiles.length === 0;
   }
 
   get canViewGithubConfig(): boolean {
@@ -211,5 +220,9 @@ export class UploadPageComponent {
 
   get canEditGithubConfig(): boolean {
     return this.auth.canEditConfiguration();
+  }
+
+  trackById(_: number, item: QueuedFile): string {
+    return item.id;
   }
 }

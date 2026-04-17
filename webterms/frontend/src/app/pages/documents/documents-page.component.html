@@ -45,7 +45,38 @@
 
         </div>
 
-      <app-documents-list [documents]="documents" [canDelete]="false" />
+      <app-documents-list 
+        [documents]="documents" 
+        [canDelete]="canDelete"
+        (deleteRequested)="onSoftDelete($event)" />
+
+      @if (statusMessage) {
+        <div class="alert mt-3" [class.alert-success]="statusMessage.startsWith('✓')" [class.alert-danger]="statusMessage.startsWith('Errore')">
+          {{ statusMessage }}
+        </div>
+      }
+
+      @if (canDelete && deletedDocuments.length > 0) {
+        <hr class="my-4" />
+        
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h3 class="h5 mb-0">
+            Documenti eliminati
+            <span class="badge bg-secondary ms-2">{{ deletedDocuments.length }}</span>
+          </h3>
+          <button class="btn btn-sm" [class.btn-outline-secondary]="!showDeleted" [class.btn-secondary]="showDeleted" (click)="toggleShowDeleted()">
+            {{ showDeleted ? 'Nascondi' : 'Mostra' }}
+          </button>
+        </div>
+
+        @if (showDeleted) {
+          <app-documents-list 
+            [documents]="deletedDocuments"
+            [canHardDelete]="true"
+            (restoreRequested)="onRestore($event)"
+            (hardDeleteRequested)="onHardDelete($event)" />
+        }
+      }
     </div>
   </section>
 </main>

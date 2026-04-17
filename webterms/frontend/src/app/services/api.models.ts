@@ -50,6 +50,7 @@ export interface PublicLatestEntry {
   downloadUrl: string;
   originalFileName?: string;
   downloadFileName?: string;
+  deletedAt?: string;
 }
 
 export interface PublicLatestResponse {
@@ -71,4 +72,27 @@ export interface PublishPayload {
   documentsRootPath: string;
   manifestPath: string;
   publicBaseUrl: string;
+}
+
+export interface DeletePayload {
+  platform: string;
+  docType: 'terms' | 'privacy' | 'cookie';
+  lang: string;
+  githubToken: string;
+  repoOwner: string;
+  repoName: string;
+  branch: string;
+  manifestPath: string;
+  filePath: string;
+}
+
+export interface RestorePayload {
+  platform: string;
+  docType: 'terms' | 'privacy' | 'cookie';
+  lang: string;
+  githubToken: string;
+  repoOwner: string;
+  repoName: string;
+  branch: string;
+  manifestPath: string;
 }
