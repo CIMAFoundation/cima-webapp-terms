@@ -18,7 +18,7 @@ export class RuntimeConfigService {
   private static readonly DEFAULT_MANIFEST_URL =
     'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
   private static readonly LEGACY_MANIFEST_URL =
-    'https://raw.githubusercontent.com/dedandy/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
+    'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
 
   private static readonly DEFAULT_REPO_CONFIG: GithubRepoConfig = {
     owner: 'CIMAFoundation',
@@ -29,7 +29,7 @@ export class RuntimeConfigService {
     publicBaseUrl: 'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main'
   };
   private static readonly LEGACY_PUBLIC_BASE_URL =
-    'https://raw.githubusercontent.com/dedandy/cima-legal-public-docs/main';
+    'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main';
 
   getManifestUrl(): string {
     const raw = localStorage.getItem(RuntimeConfigService.MANIFEST_URL_KEY);
