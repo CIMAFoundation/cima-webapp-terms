@@ -16,6 +16,8 @@ export class RuntimeConfigService {
   private static readonly GITHUB_REPO_CONFIG_KEY = 'webterms_github_repo_config';
 
   private static readonly DEFAULT_MANIFEST_URL =
+    'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
+  private static readonly LEGACY_MANIFEST_URL =
     'https://raw.githubusercontent.com/dedandy/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
 
   private static readonly DEFAULT_REPO_CONFIG: GithubRepoConfig = {
@@ -24,11 +26,17 @@ export class RuntimeConfigService {
     branch: 'main',
     documentsRootPath: 'legal-docs/files',
     manifestPath: 'legal-docs/manifests/latest.json',
-    publicBaseUrl: 'https://raw.githubusercontent.com/dedandy/cima-legal-public-docs/main'
+    publicBaseUrl: 'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main'
   };
+  private static readonly LEGACY_PUBLIC_BASE_URL =
+    'https://raw.githubusercontent.com/dedandy/cima-legal-public-docs/main';
 
   getManifestUrl(): string {
-    return localStorage.getItem(RuntimeConfigService.MANIFEST_URL_KEY) || RuntimeConfigService.DEFAULT_MANIFEST_URL;
+    const raw = localStorage.getItem(RuntimeConfigService.MANIFEST_URL_KEY);
+    if (!raw || raw === RuntimeConfigService.LEGACY_MANIFEST_URL) {
+      return RuntimeConfigService.DEFAULT_MANIFEST_URL;
+    }
+    return raw;
   }
 
   setManifestUrl(url: string): void {
@@ -62,7 +70,10 @@ export class RuntimeConfigService {
         documentsRootPath:
           parsed.documentsRootPath || RuntimeConfigService.DEFAULT_REPO_CONFIG.documentsRootPath,
         manifestPath: parsed.manifestPath || RuntimeConfigService.DEFAULT_REPO_CONFIG.manifestPath,
-        publicBaseUrl: parsed.publicBaseUrl || RuntimeConfigService.DEFAULT_REPO_CONFIG.publicBaseUrl
+        publicBaseUrl:
+          !parsed.publicBaseUrl || parsed.publicBaseUrl === RuntimeConfigService.LEGACY_PUBLIC_BASE_URL
+            ? RuntimeConfigService.DEFAULT_REPO_CONFIG.publicBaseUrl
+            : parsed.publicBaseUrl
       };
     } catch {
       return RuntimeConfigService.DEFAULT_REPO_CONFIG;

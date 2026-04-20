@@ -56,7 +56,10 @@ export class DocumentsApiService {
   }
 
   getPublicLatest(manifestUrl: string): Observable<PublicLatestResponse> {
-    return this.http.get<PublicLatestResponse>(manifestUrl);
+    const cacheBustedUrl = manifestUrl.includes('?')
+      ? `${manifestUrl}&t=${Date.now()}`
+      : `${manifestUrl}?t=${Date.now()}`;
+    return this.http.get<PublicLatestResponse>(cacheBustedUrl);
   }
 
   async publishDocument(payload: PublishPayload): Promise<{ version: number; filePath: string }> {
@@ -312,18 +315,23 @@ export class DocumentsApiService {
       sha = undefined;
     }
 
-    return await firstValueFrom(
-      this.http.put<GithubContentResponse>(
-        url,
-        {
-          message: params.message,
-          content: params.contentBase64,
-          branch: params.branch,
-          sha
-        },
-        { headers }
-      )
-    );
+    try {
+      return await firstValueFrom(
+        this.http.put<GithubContentResponse>(
+          url,
+          {
+            message: params.message,
+            content: params.contentBase64,
+            branch: params.branch,
+            sha
+          },
+          { headers }
+        )
+      );
+    } catch (error: any) {
+      const msg = error?.error?.message || error?.message || error?.statusText || 'Errore sconosciuto';
+      throw new Error(`GitHub API error: ${msg}`);
+    }
   }
 
   private async deleteGithubFile(params: {
@@ -346,16 +354,21 @@ export class DocumentsApiService {
       this.http.get<GithubGetFileResponse>(`${url}?ref=${params.branch}`, { headers })
     );
 
-    await firstValueFrom(
-      this.http.request('DELETE', url, {
-        headers,
-        body: {
-          message: params.message,
-          branch: params.branch,
-          sha: existing.sha
-        }
-      })
-    );
+    try {
+      await firstValueFrom(
+        this.http.request('DELETE', url, {
+          headers,
+          body: {
+            message: params.message,
+            branch: params.branch,
+            sha: existing.sha
+          }
+        })
+      );
+    } catch (error: any) {
+      const msg = error?.error?.message || error?.message || error?.statusText || 'Errore sconosciuto';
+      throw new Error(`GitHub API error: ${msg}`);
+    }
   }
 
   private async computeSha256(contentBase64: string): Promise<string> {
