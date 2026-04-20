@@ -50,6 +50,7 @@ export class OfficialDocumentsPageComponent {
       for (const docType of Object.keys(latest[platform] || {})) {
         for (const lang of Object.keys(latest[platform][docType] || {})) {
           const entry = latest[platform][docType][lang] as PublicLatestEntry;
+          if (entry.deletedAt) continue;
           flattened.push({
             line: entry.line || '-',
             platform,

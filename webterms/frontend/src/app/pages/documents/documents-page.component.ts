@@ -160,8 +160,7 @@ export class DocumentsPageComponent {
         search: formValue.search || undefined,
         platform: formValue.platform || undefined,
         docType: formValue.docType || undefined,
-        lang: formValue.lang || undefined,
-        includeDeleted: this.showDeleted
+        lang: formValue.lang || undefined
       })
     );
     this.documents = (response.documents || []).filter((d) => !d.deletedAt);

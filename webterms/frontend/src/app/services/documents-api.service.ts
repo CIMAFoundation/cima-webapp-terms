@@ -30,7 +30,6 @@ export class DocumentsApiService {
       platform?: string;
       docType?: string;
       lang?: string;
-      includeDeleted?: boolean;
     }
   ): Observable<DocumentsResponse> {
     return this.getPublicLatest(manifestUrl).pipe(
@@ -38,7 +37,6 @@ export class DocumentsApiService {
         const documents = this.flattenLatest(response.latest || {});
         return {
           documents: documents.filter((doc) => {
-            if (!filters.includeDeleted && doc.deletedAt) return false;
             if (filters.search) {
               const search = filters.search.toLowerCase();
               const haystack = `${doc.originalFileName} ${doc.downloadFileName} ${doc.platform} ${doc.docType}`
