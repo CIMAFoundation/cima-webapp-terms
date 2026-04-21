@@ -17,18 +17,15 @@ export class RuntimeConfigService {
   private static readonly GITHUB_TOKEN_KEY = 'webterms_github_token';
   private static readonly GITHUB_REPO_CONFIG_KEY = 'webterms_github_repo_config';
 
-  // Legacy URLs for migration
-  private static readonly LEGACY_MANIFEST_URL =
-    'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
-  
-  // New GitHub Pages URL (recommended)
-  private static readonly DEFAULT_MANIFEST_URL =
-    'https://cimafoundation.github.io/catalog/manifest.json';
+  // GitHub Pages URL (primary, stable)
+  private static readonly PAGES_MANIFEST_URL =
+    'https://dedandy.github.io/catalog/manifest.json';
 
-  // Fallback raw URL (less reliable)
-  private static readonly FALLBACK_MANIFEST_URL =
+  // Corporate repo URLs (fallback)
+  private static readonly CORPORATE_MANIFEST_URL =
     'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
 
+  // Corporate repo defaults
   private static readonly DEFAULT_REPO_CONFIG: GithubRepoConfig = {
     owner: 'CIMAFoundation',
     repo: 'cima-legal-public-docs',
@@ -38,23 +35,23 @@ export class RuntimeConfigService {
     publicBaseUrl: 'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main'
   };
 
-  private static readonly LEGACY_PUBLIC_BASE_URL =
-    'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main';
-
   private static readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+  /**
+   * Gets the manifest URL for reading.
+   * Priority: 1) User custom, 2) GitHub Pages, 3) Corporate raw (fallback)
+   */
   getManifestUrl(): string {
-    const raw = localStorage.getItem(RuntimeConfigService.MANIFEST_URL_KEY);
-    // If user has custom URL, use it
-    if (raw && raw !== RuntimeConfigService.LEGACY_MANIFEST_URL) {
-      return raw;
-    }
-    // Default to GitHub Pages URL
-    return RuntimeConfigService.DEFAULT_MANIFEST_URL;
+    const custom = localStorage.getItem(RuntimeConfigService.MANIFEST_URL_KEY);
+    if (custom) return custom;
+    return RuntimeConfigService.PAGES_MANIFEST_URL;
   }
 
+  /**
+   * Gets fallback URL if primary fails.
+   */
   getFallbackManifestUrl(): string {
-    return RuntimeConfigService.FALLBACK_MANIFEST_URL;
+    return RuntimeConfigService.CORPORATE_MANIFEST_URL;
   }
 
   setManifestUrl(url: string): void {
@@ -103,6 +100,9 @@ export class RuntimeConfigService {
     localStorage.removeItem(RuntimeConfigService.GITHUB_TOKEN_KEY);
   }
 
+  /**
+   * Gets GitHub repo config for writes (always corporate repo).
+   */
   getGithubRepoConfig(): GithubRepoConfig {
     const raw = localStorage.getItem(RuntimeConfigService.GITHUB_REPO_CONFIG_KEY);
     if (!raw) {
@@ -118,10 +118,7 @@ export class RuntimeConfigService {
         documentsRootPath:
           parsed.documentsRootPath || RuntimeConfigService.DEFAULT_REPO_CONFIG.documentsRootPath,
         manifestPath: parsed.manifestPath || RuntimeConfigService.DEFAULT_REPO_CONFIG.manifestPath,
-        publicBaseUrl:
-          !parsed.publicBaseUrl || parsed.publicBaseUrl === RuntimeConfigService.LEGACY_PUBLIC_BASE_URL
-            ? RuntimeConfigService.DEFAULT_REPO_CONFIG.publicBaseUrl
-            : parsed.publicBaseUrl
+        publicBaseUrl: parsed.publicBaseUrl || RuntimeConfigService.DEFAULT_REPO_CONFIG.publicBaseUrl
       };
     } catch {
       return RuntimeConfigService.DEFAULT_REPO_CONFIG;

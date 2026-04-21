@@ -20,6 +20,11 @@ interface QueuedFile {
   message?: string;
 }
 
+interface SnackbarMessage {
+  text: string;
+  type: 'success' | 'error' | 'info';
+}
+
 @Component({
   selector: 'app-upload-page',
   standalone: true,
@@ -52,7 +57,9 @@ export class UploadPageComponent {
   submitAttempted = false;
   platformOptions: PlatformOption[] = [];
   langOptions = ['it', 'en', 'fr', 'es', 'pt'];
+  snackbar: SnackbarMessage | null = null;
   private fileCounter = 0;
+  private snackbarTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     if (!this.auth.isAuthenticated()) {
@@ -60,6 +67,16 @@ export class UploadPageComponent {
       return;
     }
     this.loadConfig();
+  }
+
+  private showSnackbar(text: string, type: 'success' | 'error' | 'info' = 'success'): void {
+    if (this.snackbarTimeout) {
+      clearTimeout(this.snackbarTimeout);
+    }
+    this.snackbar = { text, type };
+    this.snackbarTimeout = setTimeout(() => {
+      this.snackbar = null;
+    }, 4000);
   }
 
   onPickFiles(event: Event): void {
@@ -102,6 +119,56 @@ export class UploadPageComponent {
       manifestPath: String(cfg.manifestPath || ''),
       publicBaseUrl: String(cfg.publicBaseUrl || '')
     });
+    this.showSnackbar('Configurazione salvata', 'success');
+  }
+
+  exportConfig(): void {
+    if (!this.canEditGithubConfig) return;
+    
+    const config = {
+      manifestUrl: this.runtimeConfig.getManifestUrl(),
+      githubToken: this.runtimeConfig.getGithubToken(),
+      githubRepoConfig: this.runtimeConfig.getGithubRepoConfig()
+    };
+
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `webterms-config-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.showSnackbar('Configurazione esportata', 'success');
+  }
+
+  importConfig(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const config = JSON.parse(e.target?.result as string);
+        
+        if (config.manifestUrl) this.runtimeConfig.setManifestUrl(config.manifestUrl);
+        if (config.githubToken) this.runtimeConfig.setGithubToken(config.githubToken);
+        if (config.githubRepoConfig) this.runtimeConfig.setGithubRepoConfig(config.githubRepoConfig);
+
+        // Update form values
+        this.githubForm.patchValue({
+          manifestUrl: config.manifestUrl || this.runtimeConfig.getManifestUrl(),
+          githubToken: config.githubToken || '',
+          ...config.githubRepoConfig
+        });
+
+        this.showSnackbar('Configurazione importata', 'success');
+      } catch {
+        this.showSnackbar('File non valido', 'error');
+      }
+    };
+    reader.readAsText(file);
+    input.value = '';
   }
 
   createFileEntry(file: File): QueuedFile {
@@ -124,7 +191,10 @@ export class UploadPageComponent {
   async uploadAll(): Promise<void> {
     this.submitAttempted = true;
 
-    if (!this.canPublish) return;
+    if (!this.canPublish) {
+      this.showSnackbar('Compila tutti i campi richiesti', 'error');
+      return;
+    }
 
     this.saveGithubSettings();
     const github = this.githubForm.getRawValue();
@@ -133,6 +203,9 @@ export class UploadPageComponent {
       f.status = 'uploading';
       f.message = undefined;
     });
+
+    let successCount = 0;
+    let errorCount = 0;
 
     for (const queuedFile of this.queuedFiles) {
       try {
@@ -154,16 +227,24 @@ export class UploadPageComponent {
         const published = await this.documentsApi.publishDocument(payload);
         queuedFile.status = 'done';
         queuedFile.message = `Pubblicato v${String(published.version).padStart(3, '0')}`;
+        successCount++;
       } catch (error: any) {
         queuedFile.status = 'error';
         const backendError = String(error?.error?.message || error?.error || '').trim();
         queuedFile.message = backendError || `Errore (status ${error?.status || '?'})`;
+        errorCount++;
       }
+    }
+
+    if (successCount > 0 && errorCount === 0) {
+      this.showSnackbar(`${successCount} file pubblicati`, 'success');
+    } else if (errorCount > 0) {
+      this.showSnackbar(`${errorCount} errori su ${this.queuedFiles.length} file`, 'error');
     }
 
     setTimeout(() => {
       this.queuedFiles = this.queuedFiles.filter((f) => f.status !== 'done');
-    }, 2000);
+    }, 3000);
   }
 
   private getTodayDate(): string {
@@ -224,5 +305,12 @@ export class UploadPageComponent {
 
   trackById(_: number, item: QueuedFile): string {
     return item.id;
+  }
+
+  dismissSnackbar(): void {
+    if (this.snackbarTimeout) {
+      clearTimeout(this.snackbarTimeout);
+    }
+    this.snackbar = null;
   }
 }

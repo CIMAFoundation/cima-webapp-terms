@@ -1,4 +1,22 @@
 <main class="container py-4 py-lg-5">
+  <!-- Snackbar -->
+  @if (snackbar) {
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;">
+      <div 
+        class="toast show" 
+        [class.bg-success]="snackbar.type === 'success'"
+        [class.bg-danger]="snackbar.type === 'error'"
+        [class.bg-secondary]="snackbar.type === 'info'"
+        role="alert"
+        style="min-width: 250px;">
+        <div class="d-flex justify-content-between align-items-center text-white">
+          <div class="toast-body">{{ snackbar.text }}</div>
+          <button type="button" class="btn-close btn-close-white ms-2" (click)="dismissSnackbar()"></button>
+        </div>
+      </div>
+    </div>
+  }
+
   <header class="mb-4 d-flex justify-content-between align-items-center">
     <div>
       <h1 class="display-6 fw-semibold mb-1">Inserimento documenti</h1>
@@ -12,20 +30,33 @@
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="h5 mb-0">Configurazione GitHub</h2>
-        <button class="btn btn-outline-secondary btn-sm" type="button" (click)="toggleGithubConfig()">
-          {{ showGithubConfig ? 'Nascondi' : 'Mostra' }} configurazione
-        </button>
+        <div class="d-flex gap-2">
+          @if (canEditGithubConfig) {
+            <button class="btn btn-outline-primary btn-sm" (click)="exportConfig()" title="Esporta configurazione">
+              ⬇ Esporta
+            </button>
+            <label class="btn btn-outline-primary btn-sm mb-0" title="Importa configurazione">
+              ⬆ Importa
+              <input class="d-none" type="file" accept=".json" (change)="importConfig($event)" />
+            </label>
+          }
+          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="toggleGithubConfig()">
+            {{ showGithubConfig ? 'Nascondi' : 'Mostra' }}
+          </button>
+        </div>
       </div>
       @if (showGithubConfig) {
         <fieldset [disabled]="!canEditGithubConfig">
           <form [formGroup]="githubForm" class="row g-3">
             <div class="col-12 col-lg-6">
-              <label class="form-label">Manifest URL pubblico</label>
+              <label class="form-label">Manifest URL (lettura)</label>
               <input class="form-control" [class.is-invalid]="hasGithubError('manifestUrl')" formControlName="manifestUrl" />
+              <small class="form-text text-muted">URL del manifest JSON per la lettura</small>
             </div>
             <div class="col-12 col-lg-6">
-              <label class="form-label">GitHub token (repo write)</label>
+              <label class="form-label">GitHub token</label>
               <input class="form-control" [class.is-invalid]="hasGithubError('githubToken')" type="password" formControlName="githubToken" />
+              <small class="form-text text-muted">PAT con accesso repo</small>
             </div>
             <div class="col-12 col-md-4">
               <label class="form-label">Repo owner</label>
@@ -55,7 +86,7 @@
         </fieldset>
         @if (canEditGithubConfig) {
           <div class="mt-3">
-            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="saveGithubSettings()">
+            <button class="btn btn-primary" type="button" (click)="saveGithubSettings()">
               Salva configurazione
             </button>
           </div>
