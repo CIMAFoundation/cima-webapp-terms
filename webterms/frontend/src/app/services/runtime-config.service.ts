@@ -12,12 +12,21 @@ export interface GithubRepoConfig {
 @Injectable({ providedIn: 'root' })
 export class RuntimeConfigService {
   private static readonly MANIFEST_URL_KEY = 'webterms_manifest_url';
+  private static readonly CACHED_MANIFEST_KEY = 'webterms_cached_manifest';
+  private static readonly CACHED_MANIFEST_TTL_KEY = 'webterms_cached_manifest_ttl';
   private static readonly GITHUB_TOKEN_KEY = 'webterms_github_token';
   private static readonly GITHUB_REPO_CONFIG_KEY = 'webterms_github_repo_config';
 
-  private static readonly DEFAULT_MANIFEST_URL =
-    'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
+  // Legacy URLs for migration
   private static readonly LEGACY_MANIFEST_URL =
+    'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
+  
+  // New GitHub Pages URL (recommended)
+  private static readonly DEFAULT_MANIFEST_URL =
+    'https://cimafoundation.github.io/catalog/manifest.json';
+
+  // Fallback raw URL (less reliable)
+  private static readonly FALLBACK_MANIFEST_URL =
     'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
 
   private static readonly DEFAULT_REPO_CONFIG: GithubRepoConfig = {
@@ -28,19 +37,58 @@ export class RuntimeConfigService {
     manifestPath: 'legal-docs/manifests/latest.json',
     publicBaseUrl: 'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main'
   };
+
   private static readonly LEGACY_PUBLIC_BASE_URL =
     'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main';
 
+  private static readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
   getManifestUrl(): string {
     const raw = localStorage.getItem(RuntimeConfigService.MANIFEST_URL_KEY);
-    if (!raw || raw === RuntimeConfigService.LEGACY_MANIFEST_URL) {
-      return RuntimeConfigService.DEFAULT_MANIFEST_URL;
+    // If user has custom URL, use it
+    if (raw && raw !== RuntimeConfigService.LEGACY_MANIFEST_URL) {
+      return raw;
     }
-    return raw;
+    // Default to GitHub Pages URL
+    return RuntimeConfigService.DEFAULT_MANIFEST_URL;
+  }
+
+  getFallbackManifestUrl(): string {
+    return RuntimeConfigService.FALLBACK_MANIFEST_URL;
   }
 
   setManifestUrl(url: string): void {
     localStorage.setItem(RuntimeConfigService.MANIFEST_URL_KEY, url.trim());
+  }
+
+  // Cached manifest management
+  getCachedManifest(): { manifest: unknown; timestamp: number } | null {
+    try {
+      const raw = localStorage.getItem(RuntimeConfigService.CACHED_MANIFEST_KEY);
+      const ttlRaw = localStorage.getItem(RuntimeConfigService.CACHED_MANIFEST_TTL_KEY);
+      if (!raw || !ttlRaw) return null;
+      
+      const ttl = parseInt(ttlRaw, 10);
+      if (Date.now() > ttl) {
+        this.clearCachedManifest();
+        return null;
+      }
+      
+      return { manifest: JSON.parse(raw), timestamp: ttl };
+    } catch {
+      return null;
+    }
+  }
+
+  setCachedManifest(manifest: unknown): void {
+    const ttl = Date.now() + RuntimeConfigService.CACHE_TTL_MS;
+    localStorage.setItem(RuntimeConfigService.CACHED_MANIFEST_KEY, JSON.stringify(manifest));
+    localStorage.setItem(RuntimeConfigService.CACHED_MANIFEST_TTL_KEY, ttl.toString());
+  }
+
+  clearCachedManifest(): void {
+    localStorage.removeItem(RuntimeConfigService.CACHED_MANIFEST_KEY);
+    localStorage.removeItem(RuntimeConfigService.CACHED_MANIFEST_TTL_KEY);
   }
 
   getGithubToken(): string {

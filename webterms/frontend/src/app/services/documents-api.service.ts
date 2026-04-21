@@ -10,6 +10,7 @@ import {
   DeletePayload,
   RestorePayload
 } from './api.models';
+import { RuntimeConfigService } from './runtime-config.service';
 
 interface GithubContentResponse {
   sha: string;
@@ -22,6 +23,7 @@ interface GithubGetFileResponse {
 @Injectable({ providedIn: 'root' })
 export class DocumentsApiService {
   private readonly http = inject(HttpClient);
+  private readonly runtimeConfig = inject(RuntimeConfigService);
 
   getDocuments(
     manifestUrl: string,
@@ -30,13 +32,15 @@ export class DocumentsApiService {
       platform?: string;
       docType?: string;
       lang?: string;
+      includeDeleted?: boolean;
     }
   ): Observable<DocumentsResponse> {
-    return this.getPublicLatest(manifestUrl).pipe(
+    return this.fetchManifestWithFallback().pipe(
       map((response) => {
         const documents = this.flattenLatest(response.latest || {});
         return {
           documents: documents.filter((doc) => {
+            if (!filters.includeDeleted && doc.deletedAt) return false;
             if (filters.search) {
               const search = filters.search.toLowerCase();
               const haystack = `${doc.originalFileName} ${doc.downloadFileName} ${doc.platform} ${doc.docType}`
@@ -45,8 +49,8 @@ export class DocumentsApiService {
             }
             if (filters.platform && doc.platform !== filters.platform) return false;
             if (filters.docType && doc.docType !== filters.docType) return false;
-            return !(filters.lang && doc.lang !== filters.lang);
-
+            if (filters.lang && doc.lang !== filters.lang) return false;
+            return true;
           })
         };
       })
@@ -54,16 +58,64 @@ export class DocumentsApiService {
   }
 
   getPublicLatest(manifestUrl: string): Observable<PublicLatestResponse> {
-    const cacheBustedUrl = manifestUrl.includes('?')
-      ? `${manifestUrl}&t=${Date.now()}`
-      : `${manifestUrl}?t=${Date.now()}`;
-    return this.http.get<PublicLatestResponse>(cacheBustedUrl);
+    return this.fetchManifestWithFallback();
+  }
+
+  private fetchManifestWithFallback(): Observable<PublicLatestResponse> {
+    const primaryUrl = this.runtimeConfig.getManifestUrl();
+    const fallbackUrl = this.runtimeConfig.getFallbackManifestUrl();
+
+    // Check cache first
+    const cached = this.runtimeConfig.getCachedManifest();
+    if (cached) {
+      return new Observable((observer) => {
+        observer.next(cached.manifest as PublicLatestResponse);
+        observer.complete();
+      });
+    }
+
+    // Fetch from primary URL
+    return new Observable((observer) => {
+      this.http.get<PublicLatestResponse>(primaryUrl).subscribe({
+        next: (response) => {
+          this.runtimeConfig.setCachedManifest(response);
+          observer.next(response);
+          observer.complete();
+        },
+        error: (primaryError) => {
+          console.warn(`Primary manifest URL failed (${primaryUrl}), trying fallback...`);
+          // Try fallback URL
+          this.http.get<PublicLatestResponse>(fallbackUrl).subscribe({
+            next: (response) => {
+              this.runtimeConfig.setCachedManifest(response);
+              observer.next(response);
+              observer.complete();
+            },
+            error: (fallbackError) => {
+              // Last resort: try cached even if expired
+              const cachedRaw = localStorage.getItem('webterms_cached_manifest');
+              if (cachedRaw) {
+                try {
+                  const manifest = JSON.parse(cachedRaw);
+                  observer.next(manifest as PublicLatestResponse);
+                  observer.complete();
+                  return;
+                } catch {
+                  // ignore
+                }
+              }
+              observer.error(fallbackError);
+            }
+          });
+        }
+      });
+    });
   }
 
   async publishDocument(payload: PublishPayload): Promise<{ version: number; filePath: string }> {
     const dateFolder = payload.effectiveDate;
     const safeName = payload.fileName.replace(/[^a-zA-Z0-9_.-]/g, '_');
-    const manifest = await this.fetchManifest(payload);
+    const manifest = await this.fetchManifestForWrite(payload);
 
     const currentVersion =
       manifest.latest?.[payload.platform]?.[payload.docType]?.[payload.lang]?.version ?? 0;
@@ -120,11 +172,14 @@ export class DocumentsApiService {
       token: payload.githubToken
     });
 
+    // Invalidate cache after write
+    this.runtimeConfig.clearCachedManifest();
+
     return { version: nextVersion, filePath };
   }
 
   async softDeleteDocument(payload: DeletePayload): Promise<void> {
-    const manifest = await this.fetchManifest(payload);
+    const manifest = await this.fetchManifestForWrite(payload);
     const entry = manifest.latest?.[payload.platform]?.[payload.docType]?.[payload.lang];
 
     if (!entry) {
@@ -136,6 +191,7 @@ export class DocumentsApiService {
       deletedAt: new Date().toISOString()
     };
 
+    // @ts-ignore
     const nextManifest: PublicLatestResponse = {
       latest: {
         ...(manifest.latest || {}),
@@ -158,10 +214,12 @@ export class DocumentsApiService {
       message: `docs: soft-delete ${payload.platform}/${payload.docType}/${payload.lang}`,
       token: payload.githubToken
     });
+
+    this.runtimeConfig.clearCachedManifest();
   }
 
   async restoreDocument(payload: RestorePayload): Promise<void> {
-    const manifest = await this.fetchManifest(payload);
+    const manifest = await this.fetchManifestForWrite(payload);
     const entry = manifest.latest?.[payload.platform]?.[payload.docType]?.[payload.lang];
 
     if (!entry) {
@@ -195,10 +253,12 @@ export class DocumentsApiService {
       message: `docs: restore ${payload.platform}/${payload.docType}/${payload.lang}`,
       token: payload.githubToken
     });
+
+    this.runtimeConfig.clearCachedManifest();
   }
 
   async hardDeleteDocument(payload: DeletePayload): Promise<void> {
-    const manifest = await this.fetchManifest(payload);
+    const manifest = await this.fetchManifestForWrite(payload);
     const entry = manifest.latest?.[payload.platform]?.[payload.docType]?.[payload.lang];
 
     if (!entry) {
@@ -217,7 +277,7 @@ export class DocumentsApiService {
 
     // Remove entry from manifest
     const langs = manifest.latest?.[payload.platform]?.[payload.docType] || {};
-    const {[payload.lang]: _} = langs;
+    const {[payload.lang]: _, ...remainingLangs} = langs;
 
     const nextLatest = JSON.parse(JSON.stringify(manifest.latest || {}));
     delete nextLatest[payload.platform]?.[payload.docType]?.[payload.lang];
@@ -242,9 +302,11 @@ export class DocumentsApiService {
       message: `docs: hard-delete ${payload.platform}/${payload.docType}/${payload.lang}`,
       token: payload.githubToken
     });
+
+    this.runtimeConfig.clearCachedManifest();
   }
 
-  private async fetchManifest(payload: PublishPayload | DeletePayload | RestorePayload): Promise<PublicLatestResponse> {
+  private async fetchManifestForWrite(payload: PublishPayload | DeletePayload | RestorePayload): Promise<PublicLatestResponse> {
     const githubApiPath = `https://api.github.com/repos/${payload.repoOwner}/${payload.repoName}/contents/${payload.manifestPath}?ref=${payload.branch}`;
     const headers = new HttpHeaders({ Authorization: `Bearer ${payload.githubToken}` });
 
@@ -313,23 +375,18 @@ export class DocumentsApiService {
       sha = undefined;
     }
 
-    try {
-      return await firstValueFrom(
-        this.http.put<GithubContentResponse>(
-          url,
-          {
-            message: params.message,
-            content: params.contentBase64,
-            branch: params.branch,
-            sha
-          },
-          { headers }
-        )
-      );
-    } catch (error: any) {
-      const msg = error?.error?.message || error?.message || error?.statusText || 'Errore sconosciuto';
-      throw new Error(`GitHub API error: ${msg}`);
-    }
+    return await firstValueFrom(
+      this.http.put<GithubContentResponse>(
+        url,
+        {
+          message: params.message,
+          content: params.contentBase64,
+          branch: params.branch,
+          sha
+        },
+        { headers }
+      )
+    );
   }
 
   private async deleteGithubFile(params: {
@@ -347,26 +404,20 @@ export class DocumentsApiService {
       'Content-Type': 'application/json'
     });
 
-    // Get current file SHA
     const existing = await firstValueFrom(
       this.http.get<GithubGetFileResponse>(`${url}?ref=${params.branch}`, { headers })
     );
 
-    try {
-      await firstValueFrom(
-        this.http.request('DELETE', url, {
-          headers,
-          body: {
-            message: params.message,
-            branch: params.branch,
-            sha: existing.sha
-          }
-        })
-      );
-    } catch (error: any) {
-      const msg = error?.error?.message || error?.message || error?.statusText || 'Errore sconosciuto';
-      throw new Error(`GitHub API error: ${msg}`);
-    }
+    await firstValueFrom(
+      this.http.request('DELETE', url, {
+        headers,
+        body: {
+          message: params.message,
+          branch: params.branch,
+          sha: existing.sha
+        }
+      })
+    );
   }
 
   private async computeSha256(contentBase64: string): Promise<string> {
