@@ -155,6 +155,7 @@
                   </td>
                   <td>
                     <select class="form-select form-select-sm" [(ngModel)]="qf.platform" [disabled]="qf.status === 'uploading'">
+                      <option value="" disabled selected>-- Piattaforma --</option>
                       @for (p of platformOptions; track p.id) {
                         <option [value]="p.id">{{ p.label }}</option>
                       }
@@ -162,6 +163,7 @@
                   </td>
                   <td>
                     <select class="form-select form-select-sm" [(ngModel)]="qf.docType" [disabled]="qf.status === 'uploading'">
+                      <option value="" disabled selected>-- Tipo --</option>
                       <option value="terms">terms</option>
                       <option value="privacy">privacy</option>
                       <option value="cookie">cookie</option>
@@ -169,6 +171,7 @@
                   </td>
                   <td>
                     <select class="form-select form-select-sm" [(ngModel)]="qf.lang" [disabled]="qf.status === 'uploading'">
+                      <option value="" disabled selected>-- Lingua --</option>
                       @for (lang of langOptions; track lang) {
                         <option [value]="lang">{{ lang }}</option>
                       }
@@ -194,7 +197,7 @@
         <div class="d-flex justify-content-between align-items-center mt-3">
           <small class="text-secondary">{{ queuedFiles.length }} file in coda</small>
           <button class="btn btn-primary" [disabled]="!canPublish" (click)="uploadAll()">
-            Pubblica tutti
+            Pubblica
           </button>
         </div>
       }

@@ -118,8 +118,8 @@ export class DocumentsApiService {
   }
 
   async publishDocument(payload: PublishPayload): Promise<{ version: number; filePath: string }> {
-    const dateFolder = payload.effectiveDate;
-    const safeName = payload.fileName.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const dateStr = payload.effectiveDate;
+    const safeName = payload.fileName.replace(/[^a-zA-Z0-9.-]/g, '-').replace(/-+/g, '-');
     const manifest = await this.fetchManifestForWrite(payload);
 
     const currentVersion =
@@ -127,10 +127,15 @@ export class DocumentsApiService {
     const nextVersion = currentVersion + 1;
     const versionTag = `v${String(nextVersion).padStart(3, '0')}`;
 
-    const filePath = `${payload.documentsRootPath}/${payload.platform}/${payload.docType}/${payload.lang}/${dateFolder}/${versionTag}_${safeName}`;
+    const filePath = `${payload.documentsRootPath}/${payload.platform}/${payload.docType}/${payload.lang}/${dateStr}-${versionTag}-${safeName}`;
     const downloadUrl = `${payload.publicBaseUrl}/${filePath}`;
 
     const sha256 = await this.computeSha256(payload.contentBase64);
+
+    // Extract file extension dynamically
+    const extMatch = payload.fileName.match(/\.[0-9a-z]+$/i);
+    const ext = extMatch ? extMatch[0] : '';
+
     const entry: PublicLatestEntry = {
       id: `${payload.platform}-${payload.docType}-${payload.lang}-${versionTag}`,
       line: payload.line || '-',
@@ -140,7 +145,7 @@ export class DocumentsApiService {
       url: downloadUrl,
       downloadUrl,
       originalFileName: payload.fileName,
-      downloadFileName: `${payload.platform}_${payload.docType}_${payload.lang}_${versionTag}_${safeName}`,
+      downloadFileName: `${payload.platform}_${payload.docType}_${payload.lang}_${versionTag}${ext}`,
       deletedAt: undefined
     };
 

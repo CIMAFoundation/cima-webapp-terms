@@ -28,7 +28,7 @@ interface SnackbarMessage {
 @Component({
   selector: 'app-upload-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   templateUrl: './upload-page.component.html',
   styleUrl: './upload-page.component.scss'
 })
@@ -172,13 +172,12 @@ export class UploadPageComponent {
   }
 
   createFileEntry(file: File): QueuedFile {
-    const defaultPlatform = this.platformOptions[0]?.id || '';
     return {
       id: `file-${++this.fileCounter}`,
       file,
-      platform: defaultPlatform,
-      docType: 'terms',
-      lang: 'it',
+      platform: '',
+      docType: '' as any, // Cast as it's empty but type requires specific strings, we catch this in validation
+      lang: '',
       effectiveDate: this.getTodayDate(),
       status: 'pending'
     };
@@ -286,7 +285,7 @@ export class UploadPageComponent {
       !this.queuedFiles.some((f) => f.status === 'uploading') &&
       this.githubForm.valid &&
       this.queuedFiles.length > 0 &&
-      this.queuedFiles.every((f) => f.platform && f.effectiveDate)
+      this.queuedFiles.every((f) => f.platform && f.docType && f.lang && f.effectiveDate)
     );
   }
 
