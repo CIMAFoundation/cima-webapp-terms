@@ -19,13 +19,12 @@
               <th>Versione</th>
               <th>Data</th>
               <th>PDF pubblico</th>
-              <th>Download id</th>
             </tr>
           </thead>
           <tbody>
             @if (!rows.length) {
               <tr>
-                <td colspan="8" class="text-secondary">Nessun documento ufficiale disponibile.</td>
+                <td colspan="7" class="text-secondary">Nessun documento ufficiale disponibile.</td>
               </tr>
             }
             @for (row of rows; track trackByKey($index, row)) {
@@ -36,8 +35,11 @@
                 <td>{{ row.lang }}</td>
                 <td>{{ formatVersion(row.version) }}</td>
                 <td>{{ row.effectiveDate }}</td>
-                <td><a [href]="row.publicUrl" target="_blank" rel="noopener">latest</a></td>
-                <td><a [href]="row.downloadUrl" target="_blank" rel="noopener">by id</a></td>
+                <td>
+                  <a [href]="row.publicUrl" target="_blank" rel="noopener">
+                    {{ row.downloadFileName }}
+                  </a>
+                </td>
               </tr>
             }
           </tbody>

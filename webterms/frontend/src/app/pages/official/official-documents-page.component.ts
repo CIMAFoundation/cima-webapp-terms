@@ -14,6 +14,7 @@ interface OfficialRow {
   effectiveDate: string;
   publicUrl: string;
   downloadUrl: string;
+  downloadFileName: string;
 }
 
 @Component({
@@ -59,7 +60,8 @@ export class OfficialDocumentsPageComponent {
             version: entry.version,
             effectiveDate: entry.effectiveDate,
             publicUrl: entry.url,
-            downloadUrl: entry.downloadUrl
+            downloadUrl: entry.downloadUrl,
+            downloadFileName: entry.downloadFileName || entry.originalFileName || entry.id
           });
         }
       }
