@@ -17,9 +17,9 @@ export class RuntimeConfigService {
   private static readonly GITHUB_TOKEN_KEY = 'webterms_github_token';
   private static readonly GITHUB_REPO_CONFIG_KEY = 'webterms_github_repo_config';
 
-  // GitHub Pages URL (primary, stable)
+  // GitHub Pages URL (primary, stable - Corporate Repo)
   private static readonly PAGES_MANIFEST_URL =
-    'https://dedandy.github.io/catalog/manifest.json';
+    'https://cimafoundation.github.io/cima-legal-public-docs/legal-docs/manifests/latest.json';
 
   // Corporate repo URLs (fallback)
   private static readonly CORPORATE_MANIFEST_URL =
