@@ -47,27 +47,33 @@ export class DocumentsPageComponent {
     return this.auth.canEditConfiguration();
   }
 
-  async onSoftDelete(id: string): Promise<void> {
-    const doc = this.documents.find((d) => d.id === id);
-    if (!doc || !confirm(`Eliminare "${doc.originalFileName}"?\nVerrà spostato negli eliminati.`)) return;
+  async onSoftDelete(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    if (!confirm(`Vuoi spostare nel cestino ${ids.length} documeni?\nSolo una conferma necessaria.`)) return;
 
     this.loading = true;
     this.statusMessage = '';
     try {
       const github = this.runtimeConfig.getGithubRepoConfig();
-      const filePath = this.extractFilePath(doc.downloadUrl);
-      await this.documentsApi.softDeleteDocument({
-        platform: doc.platform,
-        docType: doc.docType,
-        lang: doc.lang,
-        githubToken: this.runtimeConfig.getGithubToken(),
-        repoOwner: github.owner,
-        repoName: github.repo,
-        branch: github.branch,
-        manifestPath: github.manifestPath,
-        filePath
-      });
-      this.statusMessage = `✓ "${doc.originalFileName}" eliminato.`;
+      let count = 0;
+      for (const id of ids) {
+        const doc = this.documents.find((d) => d.id === id);
+        if (!doc) continue;
+        const filePath = this.extractFilePath(doc.downloadUrl);
+        await this.documentsApi.softDeleteDocument({
+          platform: doc.platform,
+          docType: doc.docType,
+          lang: doc.lang,
+          githubToken: this.runtimeConfig.getGithubToken(),
+          repoOwner: github.owner,
+          repoName: github.repo,
+          branch: github.branch,
+          manifestPath: github.manifestPath,
+          filePath
+        });
+        count++;
+      }
+      this.statusMessage = `✓ ${count} documenti spostati nel cestino.`;
       await this.loadDocuments();
     } catch (error: any) {
       this.statusMessage = `Errore: ${error?.message || 'sconosciuto'}`;
@@ -76,25 +82,31 @@ export class DocumentsPageComponent {
     }
   }
 
-  async onRestore(id: string): Promise<void> {
-    const doc = this.deletedDocuments.find((d) => d.id === id);
-    if (!doc || !confirm(`Ripristinare "${doc.originalFileName}"?`)) return;
+  async onRestore(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    if (!confirm(`Ripristinare ${ids.length} documenti?`)) return;
 
     this.loading = true;
     this.statusMessage = '';
     try {
       const github = this.runtimeConfig.getGithubRepoConfig();
-      await this.documentsApi.restoreDocument({
-        platform: doc.platform,
-        docType: doc.docType,
-        lang: doc.lang,
-        githubToken: this.runtimeConfig.getGithubToken(),
-        repoOwner: github.owner,
-        repoName: github.repo,
-        branch: github.branch,
-        manifestPath: github.manifestPath
-      });
-      this.statusMessage = `✓ "${doc.originalFileName}" ripristinato.`;
+      let count = 0;
+      for (const id of ids) {
+        const doc = this.deletedDocuments.find((d) => d.id === id);
+        if (!doc) continue;
+        await this.documentsApi.restoreDocument({
+          platform: doc.platform,
+          docType: doc.docType,
+          lang: doc.lang,
+          githubToken: this.runtimeConfig.getGithubToken(),
+          repoOwner: github.owner,
+          repoName: github.repo,
+          branch: github.branch,
+          manifestPath: github.manifestPath
+        });
+        count++;
+      }
+      this.statusMessage = `✓ ${count} documenti ripristinati.`;
       await this.loadDocuments();
     } catch (error: any) {
       this.statusMessage = `Errore: ${error?.message || 'sconosciuto'}`;
@@ -103,13 +115,11 @@ export class DocumentsPageComponent {
     }
   }
 
-  async onHardDelete(id: string): Promise<void> {
-    const doc = this.deletedDocuments.find((d) => d.id === id);
-    if (!doc) return;
-
+  async onHardDelete(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
     const confirmed = confirm(
-      `⚠️ ELIMINAZIONE DEFINITIVA di "${doc.originalFileName}"\n\n` +
-      `Questa azione è IRREVERSIBILE. Il file verrà rimosso da GitHub.\n\n` +
+      `⚠️ ELIMINAZIONE DEFINITIVA di ${ids.length} file\n\n` +
+      `Questa azione  IRREVERSIBILE. I file verranno rimossi da GitHub.\n\n` +
       `Confermi?`
     );
     if (!confirmed) return;
@@ -118,19 +128,25 @@ export class DocumentsPageComponent {
     this.statusMessage = '';
     try {
       const github = this.runtimeConfig.getGithubRepoConfig();
-      const filePath = this.extractFilePath(doc.downloadUrl);
-      await this.documentsApi.hardDeleteDocument({
-        platform: doc.platform,
-        docType: doc.docType,
-        lang: doc.lang,
-        githubToken: this.runtimeConfig.getGithubToken(),
-        repoOwner: github.owner,
-        repoName: github.repo,
-        branch: github.branch,
-        manifestPath: github.manifestPath,
-        filePath
-      });
-      this.statusMessage = `✓ "${doc.originalFileName}" eliminato definitivamente.`;
+      let count = 0;
+      for (const id of ids) {
+        const doc = this.deletedDocuments.find((d) => d.id === id);
+        if (!doc) continue;
+        const filePath = this.extractFilePath(doc.downloadUrl);
+        await this.documentsApi.hardDeleteDocument({
+          platform: doc.platform,
+          docType: doc.docType,
+          lang: doc.lang,
+          githubToken: this.runtimeConfig.getGithubToken(),
+          repoOwner: github.owner,
+          repoName: github.repo,
+          branch: github.branch,
+          manifestPath: github.manifestPath,
+          filePath
+        });
+        count++;
+      }
+      this.statusMessage = `✓ ${count} documenti eliminati definitivamente.`;
       await this.loadDocuments();
     } catch (error: any) {
       this.statusMessage = `Errore: ${error?.message || 'sconosciuto'}`;
@@ -160,7 +176,8 @@ export class DocumentsPageComponent {
         search: formValue.search || undefined,
         platform: formValue.platform || undefined,
         docType: formValue.docType || undefined,
-        lang: formValue.lang || undefined
+        lang: formValue.lang || undefined,
+        includeDeleted: true
       })
     );
     this.documents = (response.documents || []).filter((d) => !d.deletedAt);
@@ -168,8 +185,14 @@ export class DocumentsPageComponent {
   }
 
   private extractFilePath(downloadUrl: string): string {
-    // Extract path after /raw.githubusercontent.com/{owner}/{repo}/{branch}/
-    const match = downloadUrl.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(.+)/);
-    return match ? match[1] : '';
+    // Extract path after /cima-legal-public-docs/
+    const pagesMatch = downloadUrl.match(/cimafoundation\.github\.io\/cima-legal-public-docs\/(.+)/);
+    if (pagesMatch) {
+      return pagesMatch[1];
+    }
+
+    // Extract path after /raw.githubusercontent.com/{owner}/{repo}/{branch}/ (legacy/fallback)
+    const rawMatch = downloadUrl.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(.+)/);
+    return rawMatch ? rawMatch[1] : '';
   }
 }

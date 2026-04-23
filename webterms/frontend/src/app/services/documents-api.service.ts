@@ -74,9 +74,14 @@ export class DocumentsApiService {
       });
     }
 
+    // Bypass browser and CDN cache by appending a timestamp
+    const t = Date.now();
+    const primaryWithBuster = primaryUrl.includes('?') ? `${primaryUrl}&t=${t}` : `${primaryUrl}?t=${t}`;
+    const fallbackWithBuster = fallbackUrl.includes('?') ? `${fallbackUrl}&t=${t}` : `${fallbackUrl}?t=${t}`;
+
     // Fetch from primary URL
     return new Observable((observer) => {
-      this.http.get<PublicLatestResponse>(primaryUrl).subscribe({
+      this.http.get<PublicLatestResponse>(primaryWithBuster).subscribe({
         next: (response) => {
           this.runtimeConfig.setCachedManifest(response);
           observer.next(response);
@@ -85,7 +90,7 @@ export class DocumentsApiService {
         error: (primaryError) => {
           console.warn(`Primary manifest URL failed (${primaryUrl}), trying fallback...`);
           // Try fallback URL
-          this.http.get<PublicLatestResponse>(fallbackUrl).subscribe({
+          this.http.get<PublicLatestResponse>(fallbackWithBuster).subscribe({
             next: (response) => {
               this.runtimeConfig.setCachedManifest(response);
               observer.next(response);

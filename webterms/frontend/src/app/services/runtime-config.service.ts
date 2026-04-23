@@ -32,7 +32,7 @@ export class RuntimeConfigService {
     branch: 'main',
     documentsRootPath: 'legal-docs/files',
     manifestPath: 'legal-docs/manifests/latest.json',
-    publicBaseUrl: 'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main'
+    publicBaseUrl: 'https://cimafoundation.github.io/cima-legal-public-docs'
   };
 
   private static readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -43,6 +43,11 @@ export class RuntimeConfigService {
    */
   getManifestUrl(): string {
     const custom = localStorage.getItem(RuntimeConfigService.MANIFEST_URL_KEY);
+    // If custom URL is the old raw content or old personal site, override it to the new one
+    if (custom && (custom.includes('raw.githubusercontent.com') || custom.includes('dedandy.github.io'))) {
+      this.clearCachedManifest(); // purge cache when auto-migrating
+      return RuntimeConfigService.PAGES_MANIFEST_URL;
+    }
     if (custom) return custom;
     return RuntimeConfigService.PAGES_MANIFEST_URL;
   }
@@ -111,6 +116,13 @@ export class RuntimeConfigService {
 
     try {
       const parsed = JSON.parse(raw) as Partial<GithubRepoConfig>;
+
+      // Auto-migrate old raw.githubusercontent URLs to the new GH pages URL
+      let savedBaseUrl = parsed.publicBaseUrl;
+      if (savedBaseUrl && savedBaseUrl.includes('raw.githubusercontent.com')) {
+        savedBaseUrl = RuntimeConfigService.DEFAULT_REPO_CONFIG.publicBaseUrl;
+      }
+
       return {
         owner: parsed.owner || RuntimeConfigService.DEFAULT_REPO_CONFIG.owner,
         repo: parsed.repo || RuntimeConfigService.DEFAULT_REPO_CONFIG.repo,
@@ -118,7 +130,7 @@ export class RuntimeConfigService {
         documentsRootPath:
           parsed.documentsRootPath || RuntimeConfigService.DEFAULT_REPO_CONFIG.documentsRootPath,
         manifestPath: parsed.manifestPath || RuntimeConfigService.DEFAULT_REPO_CONFIG.manifestPath,
-        publicBaseUrl: parsed.publicBaseUrl || RuntimeConfigService.DEFAULT_REPO_CONFIG.publicBaseUrl
+        publicBaseUrl: savedBaseUrl || RuntimeConfigService.DEFAULT_REPO_CONFIG.publicBaseUrl
       };
     } catch {
       return RuntimeConfigService.DEFAULT_REPO_CONFIG;

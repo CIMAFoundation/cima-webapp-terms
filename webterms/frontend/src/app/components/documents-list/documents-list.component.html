@@ -2,25 +2,32 @@
   <table class="table table-sm align-middle mb-0">
     <thead>
       <tr>
+        @if (canDelete || canHardDelete) {
+          <th style="width: 40px;">
+            <input type="checkbox" class="form-check-input" [checked]="allSelected" (change)="toggleAll($event)">
+          </th>
+        }
         <th>File</th>
         <th>Scope</th>
         <th>Data</th>
         <th>Version</th>
         <th>Hash</th>
         <th>Download</th>
-        @if (canDelete || canHardDelete) {
-          <th></th>
-        }
       </tr>
     </thead>
     <tbody>
       @if (!documents.length) {
         <tr>
-          <td [attr.colspan]="canDelete || canHardDelete ? 7 : 6" class="text-secondary">Nessun documento.</td>
+          <td [attr.colspan]="canDelete || canHardDelete ? 7 : 6" class="text-secondary text-center py-3">Nessun documento.</td>
         </tr>
       }
       @for (doc of documents; track trackById($index, doc)) {
         <tr [class.table-secondary]="isDeleted(doc)">
+          @if (canDelete || canHardDelete) {
+            <td>
+              <input type="checkbox" class="form-check-input" [checked]="selectedIds.has(doc.id)" (change)="toggleSelection(doc.id, $event)">
+            </td>
+          }
           <td>
             <div class="fw-semibold">{{ doc.downloadFileName || doc.originalFileName }}</div>
             <div class="small text-secondary">{{ doc.originalFileName }}</div>
@@ -30,45 +37,53 @@
           </td>
           <td>{{ doc.platform }} / {{ doc.docType }} / {{ doc.lang }}</td>
           <td>{{ doc.effectiveDate }}</td>
-          <td>v{{ String(doc.version).padStart(3, '0') }}</td>
           <td><code>{{ doc.sha256.slice(0, 10) }}...</code></td>
           <td>
             <a class="btn btn-sm btn-outline-primary" [href]="doc.downloadUrl" target="_blank" rel="noopener">
               Scarica
             </a>
           </td>
-          @if (canDelete && !isDeleted(doc)) {
-            <td>
-              <button
-                class="btn btn-sm btn-outline-danger"
-                (click)="deleteRequested.emit(doc.id)"
-              >
-                Elimina
-              </button>
-            </td>
-          }
-          @if (isDeleted(doc)) {
-            <td>
-              @if (canDelete) {
-                <button
-                  class="btn btn-sm btn-outline-success me-1"
-                  (click)="restoreRequested.emit(doc.id)"
-                >
-                  Ripristina
-                </button>
-              }
-              @if (canHardDelete) {
-                <button
-                  class="btn btn-sm btn-danger"
-                  (click)="hardDeleteRequested.emit(doc.id)"
-                >
-                  Elimina definitivamente
-                </button>
-              }
-            </td>
-          }
         </tr>
       }
     </tbody>
   </table>
 </div>
+
+@if ((canDelete || canHardDelete) && documents.length > 0) {
+  <div class="d-flex justify-content-end gap-2 mt-3 p-3 bg-light rounded border">
+    <span class="align-self-center text-secondary me-auto">
+      {{ selectedIds.size }} selezionati
+    </span>
+
+    @if (documents[0] && !isDeleted(documents[0])) {
+      @if (canDelete) {
+        <button
+          class="btn btn-danger"
+          [disabled]="selectedIds.size === 0"
+          (click)="onDeleteSelected()"
+        >
+          Elimina Selezionati
+        </button>
+      }
+    } @else if (documents[0] && isDeleted(documents[0])) {
+      @if (canDelete) {
+        <button
+          class="btn btn-outline-success"
+          [disabled]="selectedIds.size === 0"
+          (click)="onRestoreSelected()"
+        >
+          Ripristina Selezionati
+        </button>
+      }
+      @if (canHardDelete) {
+        <button
+          class="btn btn-danger"
+          [disabled]="selectedIds.size === 0"
+          (click)="onHardDeleteSelected()"
+        >
+          Eliminazione Definitiva
+        </button>
+      }
+    }
+  </div>
+}
