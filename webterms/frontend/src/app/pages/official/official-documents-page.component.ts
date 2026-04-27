@@ -29,6 +29,10 @@ export class OfficialDocumentsPageComponent {
 
   rows: OfficialRow[] = [];
 
+  get publicReferenceUrl(): string {
+    return this.runtimeConfig.getGithubRepoConfig().publicBaseUrl.trim();
+  }
+
   constructor() {
     this.load();
   }

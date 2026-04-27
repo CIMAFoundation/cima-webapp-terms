@@ -47,6 +47,10 @@ export class DocumentsPageComponent {
     return this.auth.canEditConfiguration();
   }
 
+  get publicReferenceUrl(): string {
+    return this.runtimeConfig.getGithubRepoConfig().publicBaseUrl.trim();
+  }
+
   async onSoftDelete(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
     if (!confirm(`Vuoi spostare nel cestino ${ids.length} documeni?\nSolo una conferma necessaria.`)) return;
