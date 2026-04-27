@@ -1,0 +1,85 @@
+@if (queuedFiles.length === 0) {
+  <p class="small text-secondary">Nessun file selezionato.</p>
+} @else {
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead>
+        <tr>
+          <th style="width: 40%">File</th>
+          <th style="width: 15%">Piattaforma</th>
+          <th style="width: 12%">Tipo</th>
+          <th style="width: 10%">Lingua</th>
+          <th style="width: 13%">Data</th>
+          <th style="width: 10%"></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (qf of queuedFiles; track trackById($index, qf)) {
+          <tr [class.table-success]="qf.status === 'done'" [class.table-danger]="qf.status === 'error'">
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <span class="text-truncate" style="max-width: 200px">{{ qf.file.name }}</span>
+                @if (qf.status === 'uploading') {
+                  <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                }
+                @if (qf.status === 'done') {
+                  <span class="text-success">✓</span>
+                }
+                @if (qf.status === 'error') {
+                  <span class="text-danger" title="{{ qf.message }}">⚠</span>
+                }
+              </div>
+              @if (qf.message) {
+                <small class="text-secondary">{{ qf.message }}</small>
+              }
+            </td>
+            <td>
+              <select class="form-select form-select-sm" [(ngModel)]="qf.platform" [disabled]="qf.status === 'uploading'">
+                <option value="">-- Piattaforma --</option>
+                @for (p of platformOptions; track p.id) {
+                  <option [value]="p.id">{{ p.label }}</option>
+                }
+              </select>
+            </td>
+            <td>
+              <select class="form-select form-select-sm" [(ngModel)]="qf.docType" [disabled]="qf.status === 'uploading'">
+                <option value="">-- Tipo --</option>
+                <option value="terms">terms</option>
+                <option value="privacy">privacy</option>
+                <option value="cookie">cookie</option>
+              </select>
+            </td>
+            <td>
+              <select class="form-select form-select-sm" [(ngModel)]="qf.lang" [disabled]="qf.status === 'uploading'">
+                <option value="">-- Lingua --</option>
+                @for (lang of langOptions; track lang) {
+                  <option [value]="lang">{{ lang }}</option>
+                }
+              </select>
+            </td>
+            <td>
+              <input type="date" class="form-control form-control-sm" [(ngModel)]="qf.effectiveDate" [disabled]="qf.status === 'uploading'" />
+            </td>
+            <td>
+              <button
+                class="btn btn-sm btn-outline-danger"
+                (click)="removeRequested.emit(qf.id)"
+                [disabled]="qf.status === 'uploading'"
+              >
+                ✕
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mt-3">
+    <small class="text-secondary">{{ queuedFiles.length }} file in coda</small>
+    <button class="btn btn-primary" [disabled]="!canPublish" (click)="publishRequested.emit()">
+      Pubblica
+    </button>
+  </div>
+}
+
