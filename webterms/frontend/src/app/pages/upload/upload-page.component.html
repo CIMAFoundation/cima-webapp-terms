@@ -8,6 +8,37 @@
     </div>
   </header>
 
+  @if (isPublishMonitorVisible) {
+    <section class="alert mb-4"
+      [class.alert-info]="isPollingActions"
+      [class.alert-success]="publishMonitorState === 'success'"
+      [class.alert-warning]="publishMonitorState === 'timeout'"
+      [class.alert-danger]="publishMonitorState === 'failure' || publishMonitorState === 'error'"
+    >
+      <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
+        <div class="me-md-auto">
+          <div class="fw-semibold">Stato pubblicazione GitHub Pages</div>
+          <div>{{ publishMonitorMessage }}</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <a class="btn btn-sm btn-outline-secondary" [href]="actionsPageUrl" target="_blank" rel="noopener">
+            Apri Actions
+          </a>
+          @if (latestRunUrl) {
+            <a class="btn btn-sm btn-outline-secondary" [href]="latestRunUrl" target="_blank" rel="noopener">
+              Apri run corrente
+            </a>
+          }
+          @if (canHardRefresh) {
+            <button class="btn btn-sm btn-primary" type="button" (click)="hardRefreshApp()">
+              Aggiorna ora
+            </button>
+          }
+        </div>
+      </div>
+    </section>
+  }
+
   @if (canViewGithubConfig) {
     <section class="card border-0 shadow-sm mb-4">
       <div class="card-body">
