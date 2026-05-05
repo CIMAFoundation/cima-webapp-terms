@@ -28,7 +28,7 @@ interface SnackbarMessage {
 @Component({
   selector: 'app-upload-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule],
   templateUrl: './upload-page.component.html',
   styleUrl: './upload-page.component.scss'
 })
