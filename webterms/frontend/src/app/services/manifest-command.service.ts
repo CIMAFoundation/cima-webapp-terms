@@ -9,10 +9,15 @@ import {
 import { GithubContentRepository } from './github-content.repository';
 import { RuntimeConfigService } from './runtime-config.service';
 
+interface HttpLikeError {
+  status?: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ManifestCommandService {
   private readonly runtimeConfig = inject(RuntimeConfigService);
   private readonly githubRepo = inject(GithubContentRepository);
+  private static readonly MAX_WRITE_RETRIES = 3;
 
   async publishDocument(payload: PublishPayload): Promise<{ version: number; filePath: string }> {
     const dateStr = payload.effectiveDate;
@@ -160,48 +165,71 @@ export class ManifestCommandService {
   }
 
   async hardDeleteDocument(payload: DeletePayload): Promise<void> {
-    const manifest = await this.fetchManifestForWrite(payload);
-    const entry = manifest.latest?.[payload.platform]?.[payload.docType]?.[payload.lang];
+    let lastError: unknown;
 
-    if (!entry) {
-      throw new Error(`Document not found: ${payload.platform}/${payload.docType}/${payload.lang}`);
+    for (let attempt = 1; attempt <= ManifestCommandService.MAX_WRITE_RETRIES; attempt += 1) {
+      try {
+        const manifest = await this.fetchManifestForWrite(payload);
+        const entry = manifest.latest?.[payload.platform]?.[payload.docType]?.[payload.lang];
+
+        if (!entry) {
+          // Gia eliminato da un processo concorrente.
+          this.runtimeConfig.clearCachedManifest();
+          return;
+        }
+
+        await this.githubRepo.deleteFile({
+          owner: payload.repoOwner,
+          repo: payload.repoName,
+          branch: payload.branch,
+          path: payload.filePath,
+          message: `docs: hard-delete ${payload.platform}/${payload.docType}/${payload.lang}`,
+          token: payload.githubToken
+        });
+
+        const nextLatest = JSON.parse(JSON.stringify(manifest.latest || {}));
+        delete nextLatest[payload.platform]?.[payload.docType]?.[payload.lang];
+
+        if (
+          !nextLatest[payload.platform]?.[payload.docType] ||
+          Object.keys(nextLatest[payload.platform][payload.docType]).length === 0
+        ) {
+          delete nextLatest[payload.platform][payload.docType];
+        }
+        if (!nextLatest[payload.platform] || Object.keys(nextLatest[payload.platform]).length === 0) {
+          delete nextLatest[payload.platform];
+        }
+
+        const nextManifest: PublicLatestResponse = { latest: nextLatest };
+
+        await this.githubRepo.upsertFile({
+          owner: payload.repoOwner,
+          repo: payload.repoName,
+          branch: payload.branch,
+          path: payload.manifestPath,
+          contentBase64: this.encodeUtf8ToBase64(JSON.stringify(nextManifest, null, 2) + '\n'),
+          message: `docs: hard-delete ${payload.platform}/${payload.docType}/${payload.lang}`,
+          token: payload.githubToken
+        });
+
+        this.runtimeConfig.clearCachedManifest();
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!this.isRetryableConflict(error) || attempt === ManifestCommandService.MAX_WRITE_RETRIES) {
+          break;
+        }
+        await this.waitMs(300 * attempt);
+      }
     }
 
-    await this.githubRepo.deleteFile({
-      owner: payload.repoOwner,
-      repo: payload.repoName,
-      branch: payload.branch,
-      path: payload.filePath,
-      message: `docs: hard-delete ${payload.platform}/${payload.docType}/${payload.lang}`,
-      token: payload.githubToken
-    });
-
-    const nextLatest = JSON.parse(JSON.stringify(manifest.latest || {}));
-    delete nextLatest[payload.platform]?.[payload.docType]?.[payload.lang];
-
-    if (
-      !nextLatest[payload.platform]?.[payload.docType] ||
-      Object.keys(nextLatest[payload.platform][payload.docType]).length === 0
-    ) {
-      delete nextLatest[payload.platform][payload.docType];
-    }
-    if (!nextLatest[payload.platform] || Object.keys(nextLatest[payload.platform]).length === 0) {
-      delete nextLatest[payload.platform];
+    if (this.isRetryableConflict(lastError)) {
+      throw new Error(
+        'Conflitto durante l\'aggiornamento del manifest. Riprova tra pochi secondi: e probabile una pubblicazione GitHub Actions in corso.'
+      );
     }
 
-    const nextManifest: PublicLatestResponse = { latest: nextLatest };
-
-    await this.githubRepo.upsertFile({
-      owner: payload.repoOwner,
-      repo: payload.repoName,
-      branch: payload.branch,
-      path: payload.manifestPath,
-      contentBase64: this.encodeUtf8ToBase64(JSON.stringify(nextManifest, null, 2) + '\n'),
-      message: `docs: hard-delete ${payload.platform}/${payload.docType}/${payload.lang}`,
-      token: payload.githubToken
-    });
-
-    this.runtimeConfig.clearCachedManifest();
+    throw lastError;
   }
 
   private async fetchManifestForWrite(
@@ -237,6 +265,15 @@ export class ManifestCommandService {
       binary += String.fromCharCode(byte);
     }
     return btoa(binary);
+  }
+
+  private isRetryableConflict(error: unknown): boolean {
+    const status = (error as HttpLikeError)?.status;
+    return status === 409 || status === 412;
+  }
+
+  private waitMs(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
