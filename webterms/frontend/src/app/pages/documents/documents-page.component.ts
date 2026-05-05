@@ -7,6 +7,7 @@ import { DocumentDto, PlatformOption } from '../../services/api.models';
 import { AuthService } from '../../services/auth.service';
 import { ConfigApiService } from '../../services/config-api.service';
 import { DocumentsApiService } from '../../services/documents-api.service';
+import { ManifestQueryService } from '../../services/manifest-query.service';
 import { RuntimeConfigService } from '../../services/runtime-config.service';
 
 @Component({
@@ -18,6 +19,7 @@ import { RuntimeConfigService } from '../../services/runtime-config.service';
 export class DocumentsPageComponent {
   private readonly configApi = inject(ConfigApiService);
   private readonly documentsApi = inject(DocumentsApiService);
+  private readonly manifestQuery = inject(ManifestQueryService);
   private readonly runtimeConfig = inject(RuntimeConfigService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
@@ -45,6 +47,10 @@ export class DocumentsPageComponent {
 
   get canDelete(): boolean {
     return this.auth.canEditConfiguration();
+  }
+
+  get publicReferenceUrl(): string {
+    return this.runtimeConfig.getGithubRepoConfig().publicBaseUrl.trim();
   }
 
   async onSoftDelete(ids: string[]): Promise<void> {
@@ -172,7 +178,7 @@ export class DocumentsPageComponent {
   private async loadDocuments(): Promise<void> {
     const formValue = this.filterForm.getRawValue();
     const response = await firstValueFrom(
-      this.documentsApi.getDocuments(this.runtimeConfig.getManifestUrl(), {
+      this.manifestQuery.getDocuments({
         search: formValue.search || undefined,
         platform: formValue.platform || undefined,
         docType: formValue.docType || undefined,

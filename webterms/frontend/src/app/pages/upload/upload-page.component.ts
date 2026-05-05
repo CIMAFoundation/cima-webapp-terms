@@ -1,44 +1,45 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Component, OnDestroy, inject } from '@angular/core';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
+import { UploadDropzoneComponent } from '../../components/upload/upload-dropzone.component';
+import {
+  UploadSnackbarComponent,
+  UploadSnackbarMessage
+} from '../../components/upload/upload-snackbar.component';
+import { UploadQueueTableComponent } from '../../components/upload/upload-queue-table.component';
 import { PlatformOption } from '../../services/api.models';
 import { AuthService } from '../../services/auth.service';
 import { ConfigApiService } from '../../services/config-api.service';
-import { DocumentsApiService } from '../../services/documents-api.service';
+import { GithubActionsService, GithubWorkflowRun } from '../../services/github-actions.service';
 import { RuntimeConfigService } from '../../services/runtime-config.service';
+import { UploadFacadeService } from '../../services/upload-facade.service';
 
-interface QueuedFile {
-  id: string;
-  file: File;
-  platform: string;
-  docType: 'terms' | 'privacy' | 'cookie';
-  lang: string;
-  effectiveDate: string;
-  status: 'pending' | 'uploading' | 'done' | 'error';
-  message?: string;
-}
-
-interface SnackbarMessage {
-  text: string;
-  type: 'success' | 'error' | 'info';
-}
+type PublishMonitorState = 'idle' | 'polling' | 'success' | 'failure' | 'timeout' | 'error';
 
 @Component({
   selector: 'app-upload-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
-  templateUrl: './upload-page.component.html',
-  styleUrl: './upload-page.component.scss'
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    UploadSnackbarComponent,
+    UploadDropzoneComponent,
+    UploadQueueTableComponent
+  ],
+  providers: [UploadFacadeService],
+  templateUrl: './upload-page.component.html'
 })
-export class UploadPageComponent {
+export class UploadPageComponent implements OnDestroy {
   private readonly configApi = inject(ConfigApiService);
-  private readonly documentsApi = inject(DocumentsApiService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly runtimeConfig = inject(RuntimeConfigService);
+  private readonly githubActions = inject(GithubActionsService);
+
+  readonly uploadFacade = inject(UploadFacadeService);
 
   readonly githubForm = this.fb.group({
     manifestUrl: [this.runtimeConfig.getManifestUrl(), Validators.required],
@@ -51,15 +52,18 @@ export class UploadPageComponent {
     publicBaseUrl: [this.runtimeConfig.getGithubRepoConfig().publicBaseUrl, Validators.required]
   });
 
-  queuedFiles: QueuedFile[] = [];
-  dragActive = false;
   showGithubConfig = false;
   submitAttempted = false;
   platformOptions: PlatformOption[] = [];
   langOptions = ['it', 'en', 'fr', 'es', 'pt'];
-  snackbar: SnackbarMessage | null = null;
-  private fileCounter = 0;
+  snackbar: UploadSnackbarMessage | null = null;
   private snackbarTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  publishMonitorState: PublishMonitorState = 'idle';
+  publishMonitorMessage = '';
+  latestRunUrl = '';
+  private pollStartTs = 0;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     if (!this.auth.isAuthenticated()) {
@@ -67,6 +71,36 @@ export class UploadPageComponent {
       return;
     }
     this.loadConfig();
+  }
+
+  ngOnDestroy(): void {
+    this.clearActionsPolling();
+  }
+
+  get canPublish(): boolean {
+    return this.uploadFacade.canPublish(this.githubForm.valid);
+  }
+
+  get actionsPageUrl(): string {
+    const cfg = this.githubForm.getRawValue();
+    return `https://github.com/${cfg.repoOwner}/${cfg.repoName}/actions`;
+  }
+
+  get isPublishMonitorVisible(): boolean {
+    return this.publishMonitorState !== 'idle';
+  }
+
+  get isPollingActions(): boolean {
+    return this.publishMonitorState === 'polling';
+  }
+
+  get canHardRefresh(): boolean {
+    return (
+      this.publishMonitorState === 'success' ||
+      this.publishMonitorState === 'failure' ||
+      this.publishMonitorState === 'timeout' ||
+      this.publishMonitorState === 'error'
+    );
   }
 
   private showSnackbar(text: string, type: 'success' | 'error' | 'info' = 'success'): void {
@@ -79,26 +113,12 @@ export class UploadPageComponent {
     }, 4000);
   }
 
-  onPickFiles(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.addFiles(input.files);
-    input.value = '';
+  onFilesSelected(files: FileList | null): void {
+    this.uploadFacade.addFiles(files);
   }
 
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    this.dragActive = false;
-    this.addFiles(event.dataTransfer?.files ?? null);
-  }
-
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    this.dragActive = true;
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    this.dragActive = false;
+  onRemoveQueued(id: string): void {
+    this.uploadFacade.removeQueued(id);
   }
 
   toggleGithubConfig(): void {
@@ -124,7 +144,7 @@ export class UploadPageComponent {
 
   exportConfig(): void {
     if (!this.canEditGithubConfig) return;
-    
+
     const config = {
       manifestUrl: this.runtimeConfig.getManifestUrl(),
       githubToken: this.runtimeConfig.getGithubToken(),
@@ -150,12 +170,11 @@ export class UploadPageComponent {
     reader.onload = (e) => {
       try {
         const config = JSON.parse(e.target?.result as string);
-        
+
         if (config.manifestUrl) this.runtimeConfig.setManifestUrl(config.manifestUrl);
         if (config.githubToken) this.runtimeConfig.setGithubToken(config.githubToken);
         if (config.githubRepoConfig) this.runtimeConfig.setGithubRepoConfig(config.githubRepoConfig);
 
-        // Update form values
         this.githubForm.patchValue({
           manifestUrl: config.manifestUrl || this.runtimeConfig.getManifestUrl(),
           githubToken: config.githubToken || '',
@@ -171,23 +190,6 @@ export class UploadPageComponent {
     input.value = '';
   }
 
-  createFileEntry(file: File): QueuedFile {
-    const defaultPlatform = this.platformOptions[0]?.id || '';
-    return {
-      id: `file-${++this.fileCounter}`,
-      file,
-      platform: defaultPlatform,
-      docType: 'terms',
-      lang: 'it',
-      effectiveDate: this.getTodayDate(),
-      status: 'pending'
-    };
-  }
-
-  removeQueued(id: string): void {
-    this.queuedFiles = this.queuedFiles.filter((f) => f.id !== id);
-  }
-
   async uploadAll(): Promise<void> {
     this.submitAttempted = true;
 
@@ -199,95 +201,35 @@ export class UploadPageComponent {
     this.saveGithubSettings();
     const github = this.githubForm.getRawValue();
 
-    this.queuedFiles.forEach((f) => {
-      f.status = 'uploading';
-      f.message = undefined;
+    const result = await this.uploadFacade.uploadAll({
+      githubToken: String(github.githubToken || ''),
+      repoOwner: String(github.repoOwner || ''),
+      repoName: String(github.repoName || ''),
+      branch: String(github.branch || ''),
+      documentsRootPath: String(github.documentsRootPath || ''),
+      manifestPath: String(github.manifestPath || ''),
+      publicBaseUrl: String(github.publicBaseUrl || '')
     });
 
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const queuedFile of this.queuedFiles) {
-      try {
-        const payload = {
-          platform: queuedFile.platform,
-          docType: queuedFile.docType,
-          lang: queuedFile.lang,
-          effectiveDate: queuedFile.effectiveDate,
-          fileName: queuedFile.file.name,
-          contentBase64: await this.readFileAsBase64(queuedFile.file),
-          githubToken: String(github.githubToken || ''),
-          repoOwner: String(github.repoOwner || ''),
-          repoName: String(github.repoName || ''),
-          branch: String(github.branch || ''),
-          documentsRootPath: String(github.documentsRootPath || ''),
-          manifestPath: String(github.manifestPath || ''),
-          publicBaseUrl: String(github.publicBaseUrl || '')
-        };
-        const published = await this.documentsApi.publishDocument(payload);
-        queuedFile.status = 'done';
-        queuedFile.message = `Pubblicato v${String(published.version).padStart(3, '0')}`;
-        successCount++;
-      } catch (error: any) {
-        queuedFile.status = 'error';
-        const backendError = String(error?.error?.message || error?.error || '').trim();
-        queuedFile.message = backendError || `Errore (status ${error?.status || '?'})`;
-        errorCount++;
-      }
-    }
-
-    if (successCount > 0 && errorCount === 0) {
-      this.showSnackbar(`${successCount} file pubblicati`, 'success');
-    } else if (errorCount > 0) {
-      this.showSnackbar(`${errorCount} errori su ${this.queuedFiles.length} file`, 'error');
+    if (result.successCount > 0 && result.errorCount === 0) {
+      this.showSnackbar(`${result.successCount} file pubblicati`, 'success');
+      this.startActionsPolling();
+    } else if (result.successCount > 0 && result.errorCount > 0) {
+      this.showSnackbar(`${result.errorCount} errori su ${this.uploadFacade.queuedFiles.length} file`, 'error');
+      this.startActionsPolling();
+    } else if (result.errorCount > 0) {
+      this.showSnackbar(`${result.errorCount} errori su ${this.uploadFacade.queuedFiles.length} file`, 'error');
+      this.resetPublishMonitor();
     }
 
     setTimeout(() => {
-      this.queuedFiles = this.queuedFiles.filter((f) => f.status !== 'done');
+      this.uploadFacade.removeDone();
     }, 3000);
   }
 
-  private getTodayDate(): string {
-    return new Date().toISOString().split('T')[0];
-  }
-
-  private async loadConfig(): Promise<void> {
-    try {
-      const cfg = await firstValueFrom(this.configApi.getInfraConfig());
-      this.platformOptions = cfg.platforms || [];
-      this.langOptions = cfg.languages?.length ? cfg.languages : this.langOptions;
-    } catch {
-      this.platformOptions = [];
-    }
-  }
-
-  private addFiles(files: FileList | null): void {
-    if (!files?.length) return;
-    const existing = new Set(this.queuedFiles.map((f) => `${f.file.name}:${f.file.size}`));
-    for (const file of Array.from(files)) {
-      const key = `${file.name}:${file.size}`;
-      if (!existing.has(key)) {
-        this.queuedFiles.push(this.createFileEntry(file));
-      }
-    }
-  }
-
-  private readFileAsBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? '').split(',')[1] ?? '');
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-  }
-
-  get canPublish(): boolean {
-    return (
-      !this.queuedFiles.some((f) => f.status === 'uploading') &&
-      this.githubForm.valid &&
-      this.queuedFiles.length > 0 &&
-      this.queuedFiles.every((f) => f.platform && f.effectiveDate)
-    );
+  hardRefreshApp(): void {
+    this.runtimeConfig.clearCachedManifest();
+    window.location.reload();
   }
 
   hasGithubError(controlName: string): boolean {
@@ -303,14 +245,113 @@ export class UploadPageComponent {
     return this.auth.canEditConfiguration();
   }
 
-  trackById(_: number, item: QueuedFile): string {
-    return item.id;
-  }
-
   dismissSnackbar(): void {
     if (this.snackbarTimeout) {
       clearTimeout(this.snackbarTimeout);
     }
     this.snackbar = null;
+  }
+
+  private async loadConfig(): Promise<void> {
+    try {
+      const cfg = await firstValueFrom(this.configApi.getInfraConfig());
+      this.platformOptions = cfg.platforms || [];
+      this.langOptions = cfg.languages?.length ? cfg.languages : this.langOptions;
+    } catch {
+      this.platformOptions = [];
+    }
+  }
+
+  private resetPublishMonitor(): void {
+    this.clearActionsPolling();
+    this.publishMonitorState = 'idle';
+    this.publishMonitorMessage = '';
+    this.latestRunUrl = '';
+  }
+
+  private startActionsPolling(): void {
+    this.clearActionsPolling();
+
+    this.publishMonitorState = 'polling';
+    this.publishMonitorMessage = 'Pubblicazione in corso su GitHub Actions. Attendo completamento...';
+    this.latestRunUrl = '';
+    this.pollStartTs = Date.now();
+
+    void this.checkActionsStatus();
+    this.pollTimer = setInterval(() => {
+      void this.checkActionsStatus();
+    }, 12000);
+  }
+
+  private clearActionsPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  private isRelevantRun(run: GithubWorkflowRun): boolean {
+    const name = String(run.name || '').toLowerCase();
+    return name.includes('publish manifest');
+  }
+
+  private async checkActionsStatus(): Promise<void> {
+    const timeoutMs = 12 * 60 * 1000;
+    if (Date.now() - this.pollStartTs > timeoutMs) {
+      this.publishMonitorState = 'timeout';
+      this.publishMonitorMessage =
+        'Tempo di attesa superato. Puoi aprire le Actions e poi usare Aggiorna ora quando il run termina.';
+      this.clearActionsPolling();
+      return;
+    }
+
+    const cfg = this.githubForm.getRawValue();
+    const owner = String(cfg.repoOwner || '');
+    const repo = String(cfg.repoName || '');
+    const branch = String(cfg.branch || 'main');
+    const token = String(cfg.githubToken || '');
+
+    try {
+      const runs = await this.githubActions.getWorkflowRuns({ owner, repo, branch, token, perPage: 25 });
+      const relevantRuns = runs.filter((run) => this.isRelevantRun(run));
+      if (!relevantRuns.length) {
+        this.publishMonitorMessage = 'Nessun run trovato al momento. Continuo a controllare...';
+        return;
+      }
+
+      const inProgress = relevantRuns.find((run) => run.status !== 'completed');
+      if (inProgress) {
+        this.latestRunUrl = inProgress.html_url;
+        this.publishMonitorMessage =
+          `Workflow in esecuzione (${inProgress.status}). I file saranno visibili al termine.`;
+        return;
+      }
+
+      const latestCompleted = relevantRuns[0];
+      this.latestRunUrl = latestCompleted.html_url;
+      const completedTs = Date.parse(latestCompleted.updated_at);
+      const isRunAfterUpload = completedTs >= this.pollStartTs - 120000;
+
+      if (!isRunAfterUpload) {
+        this.publishMonitorMessage = 'Run completato precedente all\'upload corrente. Attendo il prossimo...';
+        return;
+      }
+
+      if (latestCompleted.conclusion === 'success') {
+        this.publishMonitorState = 'success';
+        this.publishMonitorMessage =
+          'Workflow completato con successo. Ora puoi fare Aggiorna ora per ricaricare i dati.';
+      } else {
+        this.publishMonitorState = 'failure';
+        this.publishMonitorMessage =
+          `Workflow completato con esito: ${latestCompleted.conclusion || 'unknown'}. Verifica il log Actions.`;
+      }
+      this.clearActionsPolling();
+    } catch {
+      this.publishMonitorState = 'error';
+      this.publishMonitorMessage =
+        'Impossibile leggere lo stato Actions via API. Usa il link alle Actions e poi Aggiorna ora.';
+      this.clearActionsPolling();
+    }
   }
 }

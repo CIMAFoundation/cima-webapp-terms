@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { PublicLatestEntry } from '../../services/api.models';
-import { DocumentsApiService } from '../../services/documents-api.service';
+import { ManifestQueryService } from '../../services/manifest-query.service';
 import { RuntimeConfigService } from '../../services/runtime-config.service';
 
 interface OfficialRow {
@@ -14,6 +14,7 @@ interface OfficialRow {
   effectiveDate: string;
   publicUrl: string;
   downloadUrl: string;
+  downloadFileName: string;
 }
 
 @Component({
@@ -23,10 +24,14 @@ interface OfficialRow {
   templateUrl: './official-documents-page.component.html'
 })
 export class OfficialDocumentsPageComponent {
-  private readonly documentsApi = inject(DocumentsApiService);
+  private readonly manifestQuery = inject(ManifestQueryService);
   private readonly runtimeConfig = inject(RuntimeConfigService);
 
   rows: OfficialRow[] = [];
+
+  get publicReferenceUrl(): string {
+    return this.runtimeConfig.getGithubRepoConfig().publicBaseUrl.trim();
+  }
 
   constructor() {
     this.load();
@@ -41,9 +46,7 @@ export class OfficialDocumentsPageComponent {
   }
 
   private async load(): Promise<void> {
-    const response = await firstValueFrom(
-      this.documentsApi.getPublicLatest(this.runtimeConfig.getManifestUrl())
-    );
+    const response = await firstValueFrom(this.manifestQuery.getPublicLatest());
     const flattened: OfficialRow[] = [];
     const latest = response.latest || {};
     for (const platform of Object.keys(latest)) {
@@ -59,7 +62,8 @@ export class OfficialDocumentsPageComponent {
             version: entry.version,
             effectiveDate: entry.effectiveDate,
             publicUrl: entry.url,
-            downloadUrl: entry.downloadUrl
+            downloadUrl: entry.downloadUrl,
+            downloadFileName: entry.downloadFileName || entry.originalFileName || entry.id
           });
         }
       }

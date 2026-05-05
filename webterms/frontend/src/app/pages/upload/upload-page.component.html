@@ -1,103 +1,114 @@
 <main class="container py-4 py-lg-5">
-  <!-- Snackbar -->
-  @if (snackbar) {
-    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;">
-      <div 
-        class="toast show" 
-        [class.bg-success]="snackbar.type === 'success'"
-        [class.bg-danger]="snackbar.type === 'error'"
-        [class.bg-secondary]="snackbar.type === 'info'"
-        role="alert"
-        style="min-width: 250px;">
-        <div class="d-flex justify-content-between align-items-center text-white">
-          <div class="toast-body">{{ snackbar.text }}</div>
-          <button type="button" class="btn-close btn-close-white ms-2" (click)="dismissSnackbar()"></button>
-        </div>
-      </div>
-    </div>
-  }
+  <app-upload-snackbar [snackbar]="snackbar" (dismissed)="dismissSnackbar()" />
 
   <header class="mb-4 d-flex justify-content-between align-items-center">
     <div>
       <h1 class="display-6 fw-semibold mb-1">Inserimento documenti</h1>
       <p class="text-secondary mb-0">Upload e pubblicazione diretta su repository pubblico GitHub.</p>
     </div>
-<!--    <a routerLink="/documents" class="btn btn-outline-secondary btn-sm">Vai alla pagina pubblica</a>-->
   </header>
+
+  @if (isPublishMonitorVisible) {
+    <section class="alert mb-4"
+      [class.alert-info]="isPollingActions"
+      [class.alert-success]="publishMonitorState === 'success'"
+      [class.alert-warning]="publishMonitorState === 'timeout'"
+      [class.alert-danger]="publishMonitorState === 'failure' || publishMonitorState === 'error'"
+    >
+      <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
+        <div class="me-md-auto">
+          <div class="fw-semibold">Stato pubblicazione GitHub Pages</div>
+          <div>{{ publishMonitorMessage }}</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <a class="btn btn-sm btn-outline-secondary" [href]="actionsPageUrl" target="_blank" rel="noopener">
+            Apri Actions
+          </a>
+          @if (latestRunUrl) {
+            <a class="btn btn-sm btn-outline-secondary" [href]="latestRunUrl" target="_blank" rel="noopener">
+              Apri run corrente
+            </a>
+          }
+          @if (canHardRefresh) {
+            <button class="btn btn-sm btn-primary" type="button" (click)="hardRefreshApp()">
+              Aggiorna ora
+            </button>
+          }
+        </div>
+      </div>
+    </section>
+  }
 
   @if (canViewGithubConfig) {
     <section class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="h5 mb-0">Configurazione GitHub</h2>
-        <div class="d-flex gap-2">
-
-          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="toggleGithubConfig()">
-            {{ showGithubConfig ? 'Nascondi' : 'Mostra' }}
-          </button>
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Configurazione GitHub</h2>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" type="button" (click)="toggleGithubConfig()">
+              {{ showGithubConfig ? 'Nascondi' : 'Mostra' }}
+            </button>
+          </div>
         </div>
-      </div>
-      @if (showGithubConfig) {
-        <fieldset [disabled]="!canEditGithubConfig">
-          <form [formGroup]="githubForm" class="row g-3">
-            <div class="col-12 col-lg-6">
-              <label class="form-label">Manifest URL (lettura)</label>
-              <input class="form-control" [class.is-invalid]="hasGithubError('manifestUrl')" formControlName="manifestUrl" />
-              <small class="form-text text-muted">URL del manifest JSON per la lettura</small>
-            </div>
-            <div class="col-12 col-lg-6">
-              <label class="form-label">GitHub token</label>
-              <input class="form-control" [class.is-invalid]="hasGithubError('githubToken')" type="password" formControlName="githubToken" />
-              <small class="form-text text-muted">PAT con accesso repo</small>
-            </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label">Repo owner</label>
-              <input class="form-control" [class.is-invalid]="hasGithubError('repoOwner')" formControlName="repoOwner" />
-            </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label">Repo name</label>
-              <input class="form-control" [class.is-invalid]="hasGithubError('repoName')" formControlName="repoName" />
-            </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label">Branch</label>
-              <input class="form-control" [class.is-invalid]="hasGithubError('branch')" formControlName="branch" />
-            </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label">Documents root path</label>
-              <input class="form-control" [class.is-invalid]="hasGithubError('documentsRootPath')" formControlName="documentsRootPath" />
-            </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label">Manifest path</label>
-              <input class="form-control" [class.is-invalid]="hasGithubError('manifestPath')" formControlName="manifestPath" />
-            </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label">Public base URL</label>
-              <input class="form-control" [class.is-invalid]="hasGithubError('publicBaseUrl')" formControlName="publicBaseUrl" />
-            </div>
-          </form>
-        </fieldset>
+        @if (showGithubConfig) {
+          <fieldset [disabled]="!canEditGithubConfig">
+            <form [formGroup]="githubForm" class="row g-3">
+              <div class="col-12 col-lg-6">
+                <label class="form-label">Manifest URL (lettura)</label>
+                <input class="form-control" [class.is-invalid]="hasGithubError('manifestUrl')" formControlName="manifestUrl" />
+                <small class="form-text text-muted">URL del manifest JSON per la lettura</small>
+              </div>
+              <div class="col-12 col-lg-6">
+                <label class="form-label">GitHub token</label>
+                <input class="form-control" [class.is-invalid]="hasGithubError('githubToken')" type="password" formControlName="githubToken" />
+                <small class="form-text text-muted">PAT con accesso repo</small>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">Repo owner</label>
+                <input class="form-control" [class.is-invalid]="hasGithubError('repoOwner')" formControlName="repoOwner" />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">Repo name</label>
+                <input class="form-control" [class.is-invalid]="hasGithubError('repoName')" formControlName="repoName" />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">Branch</label>
+                <input class="form-control" [class.is-invalid]="hasGithubError('branch')" formControlName="branch" />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">Documents root path</label>
+                <input class="form-control" [class.is-invalid]="hasGithubError('documentsRootPath')" formControlName="documentsRootPath" />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">Manifest path</label>
+                <input class="form-control" [class.is-invalid]="hasGithubError('manifestPath')" formControlName="manifestPath" />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">Public base URL</label>
+                <input class="form-control" [class.is-invalid]="hasGithubError('publicBaseUrl')" formControlName="publicBaseUrl" />
+              </div>
+            </form>
+          </fieldset>
           <div class="mt-3">
             <div class="d-flex gap-2">
-            @if (canEditGithubConfig) {
+              @if (canEditGithubConfig) {
                 <button class="btn btn-primary" type="button" (click)="saveGithubSettings()">
                   Salva configurazione
                 </button>
-
-            }
-              @if (canEditGithubConfig) {
-                  <button class="btn btn-outline-primary" (click)="exportConfig()" title="Esporta configurazione">
-                      ⬇ Esporta
-                  </button>
-                  <label class="btn btn-outline-primary" title="Importa configurazione">
-                      ⬆ Importa
-                      <input class="d-none" type="file" accept=".json" (change)="importConfig($event)" />
-                  </label>
               }
-              </div>
-
+              @if (canEditGithubConfig) {
+                <button class="btn btn-outline-primary" (click)="exportConfig()" title="Esporta configurazione">
+                  ⬇ Esporta
+                </button>
+                <label class="btn btn-outline-primary" title="Importa configurazione">
+                  ⬆ Importa
+                  <input class="d-none" type="file" accept=".json" (change)="importConfig($event)" />
+                </label>
+              }
+            </div>
           </div>
-      }
-    </div>
+        }
+      </div>
     </section>
   }
 
@@ -105,99 +116,19 @@
     <div class="card-body">
       <h2 class="h5 mb-3">Upload documenti</h2>
 
-      <div
-        class="dropzone mb-3"
-        [class.active]="dragActive"
-        [class.is-invalid]="submitAttempted && queuedFiles.length === 0"
-        (drop)="onDrop($event)"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave($event)"
-      >
-        <p class="mb-2">Trascina qui i file oppure selezionali manualmente.</p>
-        <input id="picker" class="d-none" type="file" multiple (change)="onPickFiles($event)" />
-        <label for="picker" class="btn btn-outline-primary btn-sm">Seleziona file</label>
-      </div>
+      <app-upload-dropzone
+        [invalid]="submitAttempted && uploadFacade.queuedFiles.length === 0"
+        (filesSelected)="onFilesSelected($event)"
+      />
 
-      @if (queuedFiles.length === 0) {
-        <p class="small text-secondary">Nessun file selezionato.</p>
-      } @else {
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead>
-              <tr>
-                <th style="width: 40%">File</th>
-                <th style="width: 15%">Piattaforma</th>
-                <th style="width: 12%">Tipo</th>
-                <th style="width: 10%">Lingua</th>
-                <th style="width: 13%">Data</th>
-                <th style="width: 10%"></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (qf of queuedFiles; track trackById($index, qf)) {
-                <tr [class.table-success]="qf.status === 'done'" [class.table-danger]="qf.status === 'error'">
-                  <td>
-                    <div class="d-flex align-items-center gap-2">
-                      <span class="text-truncate" style="max-width: 200px;">{{ qf.file.name }}</span>
-                      @if (qf.status === 'uploading') {
-                        <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
-                      }
-                      @if (qf.status === 'done') {
-                        <span class="text-success">✓</span>
-                      }
-                      @if (qf.status === 'error') {
-                        <span class="text-danger" title="{{ qf.message }}">⚠</span>
-                      }
-                    </div>
-                    @if (qf.message) {
-                      <small class="text-secondary">{{ qf.message }}</small>
-                    }
-                  </td>
-                  <td>
-                    <select class="form-select form-select-sm" [(ngModel)]="qf.platform" [disabled]="qf.status === 'uploading'">
-                      @for (p of platformOptions; track p.id) {
-                        <option [value]="p.id">{{ p.label }}</option>
-                      }
-                    </select>
-                  </td>
-                  <td>
-                    <select class="form-select form-select-sm" [(ngModel)]="qf.docType" [disabled]="qf.status === 'uploading'">
-                      <option value="terms">terms</option>
-                      <option value="privacy">privacy</option>
-                      <option value="cookie">cookie</option>
-                    </select>
-                  </td>
-                  <td>
-                    <select class="form-select form-select-sm" [(ngModel)]="qf.lang" [disabled]="qf.status === 'uploading'">
-                      @for (lang of langOptions; track lang) {
-                        <option [value]="lang">{{ lang }}</option>
-                      }
-                    </select>
-                  </td>
-                  <td>
-                    <input type="date" class="form-control form-control-sm" [(ngModel)]="qf.effectiveDate" [disabled]="qf.status === 'uploading'" />
-                  </td>
-                  <td>
-                    <button 
-                      class="btn btn-sm btn-outline-danger" 
-                      (click)="removeQueued(qf.id)"
-                      [disabled]="qf.status === 'uploading'">
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <small class="text-secondary">{{ queuedFiles.length }} file in coda</small>
-          <button class="btn btn-primary" [disabled]="!canPublish" (click)="uploadAll()">
-            Pubblica tutti
-          </button>
-        </div>
-      }
+      <app-upload-queue-table
+        [queuedFiles]="uploadFacade.queuedFiles"
+        [platformOptions]="platformOptions"
+        [langOptions]="langOptions"
+        [canPublish]="canPublish"
+        (removeRequested)="onRemoveQueued($event)"
+        (publishRequested)="uploadAll()"
+      />
     </div>
   </section>
 </main>
