@@ -33,8 +33,11 @@ export class GithubContentRepository {
       );
       const raw = atob(String(response.content || '').replace(/\n/g, ''));
       return JSON.parse(raw) as T;
-    } catch {
-      return null;
+    } catch (error) {
+      if (this.getStatus(error) === 404) {
+        return null;
+      }
+      throw error;
     }
   }
 

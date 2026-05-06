@@ -43,7 +43,7 @@
                 <td>{{ formatVersion(row.version) }}</td>
                 <td>{{ row.effectiveDate }}</td>
                 <td>
-                  <a [href]="row.publicUrl" target="_blank" rel="noopener">
+                  <a [href]="row.publicUrl" [attr.download]="row.downloadFileName || null">
                     {{ row.downloadFileName }}
                   </a>
                 </td>

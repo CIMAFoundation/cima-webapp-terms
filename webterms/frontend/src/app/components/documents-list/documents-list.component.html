@@ -40,7 +40,11 @@
           <td>v{{ String(doc.version).padStart(3, '0') }}</td>
           <td><code>{{ doc.sha256.slice(0, 10) }}...</code></td>
           <td>
-            <a class="btn btn-sm btn-outline-primary" [href]="doc.downloadUrl" target="_blank" rel="noopener">
+            <a
+              class="btn btn-sm btn-outline-primary"
+              [href]="doc.downloadUrl"
+              [attr.download]="doc.downloadFileName || null"
+            >
               Scarica
             </a>
           </td>

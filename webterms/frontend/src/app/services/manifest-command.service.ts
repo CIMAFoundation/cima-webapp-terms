@@ -17,73 +17,91 @@ interface HttpLikeError {
 export class ManifestCommandService {
   private readonly runtimeConfig = inject(RuntimeConfigService);
   private readonly githubRepo = inject(GithubContentRepository);
-  private static readonly MAX_WRITE_RETRIES = 3;
+  private static readonly MAX_WRITE_RETRIES = 5;
 
   async publishDocument(payload: PublishPayload): Promise<{ version: number; filePath: string }> {
     const dateStr = payload.effectiveDate;
     const safeName = payload.fileName.replace(/[^a-zA-Z0-9.-]/g, '-').replace(/-+/g, '-');
-    const manifest = await this.fetchManifestForWrite(payload);
-
-    const currentVersion =
-      manifest.latest?.[payload.platform]?.[payload.docType]?.[payload.lang]?.version ?? 0;
-    const nextVersion = currentVersion + 1;
-    const versionTag = `v${String(nextVersion).padStart(3, '0')}`;
-
-    const filePath = `${payload.documentsRootPath}/${payload.platform}/${payload.docType}/${payload.lang}/${dateStr}-${versionTag}-${safeName}`;
-    const downloadUrl = `${payload.publicBaseUrl}/${filePath}`;
-
     const sha256 = await this.computeSha256(payload.contentBase64);
     const extMatch = payload.fileName.match(/\.[0-9a-z]+$/i);
     const ext = extMatch ? extMatch[0] : '';
+    let lastError: unknown;
 
-    const entry: PublicLatestEntry = {
-      id: `${payload.platform}-${payload.docType}-${payload.lang}-${versionTag}`,
-      line: payload.line || '-',
-      version: nextVersion,
-      effectiveDate: payload.effectiveDate,
-      sha256,
-      url: downloadUrl,
-      downloadUrl,
-      originalFileName: payload.fileName,
-      downloadFileName: `${payload.platform}_${payload.docType}_${payload.lang}_${versionTag}${ext}`,
-      deletedAt: undefined
-    };
+    for (let attempt = 1; attempt <= ManifestCommandService.MAX_WRITE_RETRIES; attempt += 1) {
+      try {
+        const manifest = await this.fetchManifestForWrite(payload);
+        const currentVersion =
+          manifest.latest?.[payload.platform]?.[payload.docType]?.[payload.lang]?.version ?? 0;
+        const nextVersion = currentVersion + 1;
+        const versionTag = `v${String(nextVersion).padStart(3, '0')}`;
 
-    const nextManifest: PublicLatestResponse = {
-      latest: {
-        ...(manifest.latest || {}),
-        [payload.platform]: {
-          ...(manifest.latest?.[payload.platform] || {}),
-          [payload.docType]: {
-            ...(manifest.latest?.[payload.platform]?.[payload.docType] || {}),
-            [payload.lang]: entry
+        const filePath = `${payload.documentsRootPath}/${payload.platform}/${payload.docType}/${payload.lang}/${dateStr}-${versionTag}-${safeName}`;
+        const downloadUrl = `${payload.publicBaseUrl}/${filePath}`;
+
+        const entry: PublicLatestEntry = {
+          id: `${payload.platform}-${payload.docType}-${payload.lang}-${versionTag}`,
+          line: payload.line || '-',
+          version: nextVersion,
+          effectiveDate: payload.effectiveDate,
+          sha256,
+          url: downloadUrl,
+          downloadUrl,
+          originalFileName: payload.fileName,
+          downloadFileName: `${payload.platform}_${payload.docType}_${payload.lang}_${versionTag}${ext}`,
+          deletedAt: undefined
+        };
+
+        const nextManifest: PublicLatestResponse = {
+          latest: {
+            ...(manifest.latest || {}),
+            [payload.platform]: {
+              ...(manifest.latest?.[payload.platform] || {}),
+              [payload.docType]: {
+                ...(manifest.latest?.[payload.platform]?.[payload.docType] || {}),
+                [payload.lang]: entry
+              }
+            }
           }
+        };
+
+        await this.githubRepo.upsertFile({
+          owner: payload.repoOwner,
+          repo: payload.repoName,
+          branch: payload.branch,
+          path: filePath,
+          contentBase64: payload.contentBase64,
+          message: `docs: publish ${payload.platform}/${payload.docType}/${payload.lang} ${versionTag}`,
+          token: payload.githubToken
+        });
+
+        await this.githubRepo.upsertFile({
+          owner: payload.repoOwner,
+          repo: payload.repoName,
+          branch: payload.branch,
+          path: payload.manifestPath,
+          contentBase64: this.encodeUtf8ToBase64(JSON.stringify(nextManifest, null, 2) + '\n'),
+          message: `docs: update manifest ${payload.platform}/${payload.docType}/${payload.lang} ${versionTag}`,
+          token: payload.githubToken
+        });
+
+        this.runtimeConfig.clearCachedManifest();
+        return { version: nextVersion, filePath };
+      } catch (error) {
+        lastError = error;
+        if (!this.isRetryableConflict(error) || attempt === ManifestCommandService.MAX_WRITE_RETRIES) {
+          break;
         }
+        await this.waitMs(400 * attempt);
       }
-    };
+    }
 
-    await this.githubRepo.upsertFile({
-      owner: payload.repoOwner,
-      repo: payload.repoName,
-      branch: payload.branch,
-      path: filePath,
-      contentBase64: payload.contentBase64,
-      message: `docs: publish ${payload.platform}/${payload.docType}/${payload.lang} ${versionTag}`,
-      token: payload.githubToken
-    });
+    if (this.isRetryableConflict(lastError)) {
+      throw new Error(
+        'Conflitto durante la pubblicazione del manifest. Riprova tra pochi secondi: e probabile una pubblicazione concorrente in corso.'
+      );
+    }
 
-    await this.githubRepo.upsertFile({
-      owner: payload.repoOwner,
-      repo: payload.repoName,
-      branch: payload.branch,
-      path: payload.manifestPath,
-      contentBase64: this.encodeUtf8ToBase64(JSON.stringify(nextManifest, null, 2) + '\n'),
-      message: `docs: update manifest ${payload.platform}/${payload.docType}/${payload.lang} ${versionTag}`,
-      token: payload.githubToken
-    });
-
-    this.runtimeConfig.clearCachedManifest();
-    return { version: nextVersion, filePath };
+    throw lastError;
   }
 
   async softDeleteDocument(payload: DeletePayload): Promise<void> {

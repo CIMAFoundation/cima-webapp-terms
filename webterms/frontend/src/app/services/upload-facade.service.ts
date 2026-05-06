@@ -107,7 +107,8 @@ export class UploadFacadeService {
       } catch (error: any) {
         queuedFile.status = 'error';
         const backendError = String(error?.error?.message || error?.error || '').trim();
-        queuedFile.message = backendError || `Errore (status ${error?.status || '?'})`;
+        const directError = String(error?.message || '').trim();
+        queuedFile.message = backendError || directError || `Errore (status ${error?.status || '?'})`;
         errorCount += 1;
       }
     }
