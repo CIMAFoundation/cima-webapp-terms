@@ -41,7 +41,7 @@
                 <td>{{ row.docType }}</td>
                 <td>{{ row.lang }}</td>
                 <td>{{ formatVersion(row.version) }}</td>
-                <td>{{ row.effectiveDate }}</td>
+                <td>{{ formatEffectiveDate(row.effectiveDate) }}</td>
                 <td>
                   <a [href]="row.publicUrl" [attr.download]="row.downloadFileName || null">
                     {{ row.downloadFileName }}

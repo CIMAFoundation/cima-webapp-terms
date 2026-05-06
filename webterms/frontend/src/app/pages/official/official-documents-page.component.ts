@@ -45,6 +45,12 @@ export class OfficialDocumentsPageComponent {
     return `v${String(version).padStart(3, '0')}`;
   }
 
+  formatEffectiveDate(value: string): string {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return value || '-';
+    return `${match[3]}/${match[2]}/${match[1]}`;
+  }
+
   private async load(): Promise<void> {
     const response = await firstValueFrom(this.manifestQuery.getPublicLatest());
     const flattened: OfficialRow[] = [];
