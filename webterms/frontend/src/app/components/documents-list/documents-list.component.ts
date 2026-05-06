@@ -31,6 +31,12 @@ export class DocumentsListComponent {
     return new Date(deletedAt).toLocaleDateString('it-IT');
   }
 
+  formatEffectiveDate(effectiveDate: string): string {
+    const match = String(effectiveDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return effectiveDate || '-';
+    return `${match[3]}/${match[2]}/${match[1]}`;
+  }
+
   get allSelected(): boolean {
     return this.documents.length > 0 && this.selectedIds.size === this.documents.length;
   }
