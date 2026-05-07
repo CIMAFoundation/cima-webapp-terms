@@ -1,10 +1,10 @@
 # Public Repo Publication Blueprint (Current)
 
 ## Goal
-Use `webterms` without a dedicated backend publisher service, publishing directly to the public GitHub repo.
+Use `frontend` without a dedicated backend publisher service, publishing directly to the public GitHub repo.
 
 ## Current Topology
-- `webterms/frontend`: UI for list/official/upload.
+- `frontend`: UI for list/official/upload.
 - Public repo: `CIMAFoundation/cima-legal-public-docs`.
 - No runtime backend for publication.
 
@@ -32,7 +32,7 @@ flowchart LR
 
 ## Canonical Paths
 - Manifest: `legal-docs/manifests/latest.json`
-- Files: `legal-docs/files/<platform>/<docType>/<lang>/<yyyy-mm-dd>/v###_<original-file-name>.pdf`
+- Files: `legal-docs/files/<platform>/<docType>/<lang>/<yyyy-mm-dd>-v###-<original-file-name>.pdf`
 
 ## Operational Notes
 - Reading public files does not require token.
