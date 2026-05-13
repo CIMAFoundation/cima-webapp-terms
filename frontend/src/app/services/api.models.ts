@@ -14,6 +14,8 @@ export interface DocumentDto {
   publicUrl: string;
 }
 
+export type UploadDocType = 'privacy-policy' | 'cookie-policy' | 'terms-of-use';
+
 export interface DocumentsResponse {
   documents: DocumentDto[];
 }
@@ -95,4 +97,17 @@ export interface RestorePayload {
   repoName: string;
   branch: string;
   manifestPath: string;
+}
+
+export interface SimplePublishPayload {
+  line: string;
+  lang: 'it' | 'en' | 'fr' | 'es' | 'pt';
+  docType: UploadDocType;
+  date: string;
+  fileName: string;
+  contentBase64: string;
+  githubToken: string;
+  repoOwner: string;
+  repoName: string;
+  branch: string;
 }

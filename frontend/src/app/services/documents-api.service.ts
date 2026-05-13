@@ -5,7 +5,8 @@ import {
   PublicLatestResponse,
   PublishPayload,
   DeletePayload,
-  RestorePayload
+  RestorePayload,
+  SimplePublishPayload
 } from './api.models';
 import { ManifestCommandService } from './manifest-command.service';
 import { ManifestQueryService } from './manifest-query.service';
@@ -34,6 +35,12 @@ export class DocumentsApiService {
 
   async publishDocument(payload: PublishPayload): Promise<{ version: number; filePath: string }> {
     return this.manifestCommands.publishDocument(payload);
+  }
+
+  async publishSimpleDocument(
+    payload: SimplePublishPayload
+  ): Promise<{ latestPath: string; legacyPath: string }> {
+    return this.manifestCommands.publishSimpleDocument(payload);
   }
 
   async softDeleteDocument(payload: DeletePayload): Promise<void> {

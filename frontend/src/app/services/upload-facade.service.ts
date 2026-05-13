@@ -1,16 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { PublishPayload } from './api.models';
+import { SimplePublishPayload, UploadDocType } from './api.models';
 import { DocumentsApiService } from './documents-api.service';
-
-type DocType = 'terms' | 'privacy' | 'cookie';
 
 export interface QueuedFile {
   id: string;
   file: File;
-  platform: string;
-  docType: DocType | '';
-  lang: string;
-  effectiveDate: string;
   status: 'pending' | 'uploading' | 'done' | 'error';
   message?: string;
 }
@@ -25,9 +19,18 @@ export interface UploadGithubConfig {
   repoOwner: string;
   repoName: string;
   branch: string;
-  documentsRootPath: string;
-  manifestPath: string;
-  publicBaseUrl: string;
+}
+
+export interface UploadMetadata {
+  line: string;
+  lang: 'it' | 'en' | 'fr' | 'es' | 'pt';
+  docType: UploadDocType;
+  date: string;
+}
+
+export interface AddFilesResult {
+  accepted: number;
+  rejected: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -37,16 +40,26 @@ export class UploadFacadeService {
   queuedFiles: QueuedFile[] = [];
   private fileCounter = 0;
 
-  addFiles(files: FileList | null): void {
-    if (!files?.length) return;
+  addFiles(files: FileList | null): AddFilesResult {
+    if (!files?.length) return { accepted: 0, rejected: [] };
 
     const existing = new Set(this.queuedFiles.map((f) => `${f.file.name}:${f.file.size}`));
+    let accepted = 0;
+    const rejected: string[] = [];
+
     for (const file of Array.from(files)) {
+      if (!this.isPdf(file)) {
+        rejected.push(file.name);
+        continue;
+      }
       const key = `${file.name}:${file.size}`;
       if (!existing.has(key)) {
         this.queuedFiles.push(this.createFileEntry(file));
+        accepted += 1;
       }
     }
+
+    return { accepted, rejected };
   }
 
   removeQueued(id: string): void {
@@ -57,16 +70,15 @@ export class UploadFacadeService {
     this.queuedFiles = this.queuedFiles.filter((f) => f.status !== 'done');
   }
 
-  canPublish(githubFormValid: boolean): boolean {
+  canPublish(metadataFormValid: boolean): boolean {
     return (
       !this.queuedFiles.some((f) => f.status === 'uploading') &&
-      githubFormValid &&
-      this.queuedFiles.length > 0 &&
-      this.queuedFiles.every((f) => this.isReadyForPublish(f))
+      metadataFormValid &&
+      this.queuedFiles.length > 0
     );
   }
 
-  async uploadAll(github: UploadGithubConfig): Promise<UploadBatchResult> {
+  async uploadAll(github: UploadGithubConfig, metadata: UploadMetadata): Promise<UploadBatchResult> {
     this.queuedFiles.forEach((f) => {
       f.status = 'uploading';
       f.message = undefined;
@@ -76,33 +88,23 @@ export class UploadFacadeService {
     let errorCount = 0;
 
     for (const queuedFile of this.queuedFiles) {
-      if (!this.isReadyForPublish(queuedFile)) {
-        queuedFile.status = 'error';
-        queuedFile.message = 'Campi mancanti';
-        errorCount += 1;
-        continue;
-      }
-
       try {
-        const payload: PublishPayload = {
-          platform: queuedFile.platform,
-          docType: queuedFile.docType,
-          lang: queuedFile.lang,
-          effectiveDate: queuedFile.effectiveDate,
+        const payload: SimplePublishPayload = {
+          line: metadata.line,
+          lang: metadata.lang,
+          docType: metadata.docType,
+          date: metadata.date,
           fileName: queuedFile.file.name,
           contentBase64: await this.readFileAsBase64(queuedFile.file),
           githubToken: github.githubToken,
           repoOwner: github.repoOwner,
           repoName: github.repoName,
-          branch: github.branch,
-          documentsRootPath: github.documentsRootPath,
-          manifestPath: github.manifestPath,
-          publicBaseUrl: github.publicBaseUrl
+          branch: github.branch
         };
 
-        const published = await this.documentsApi.publishDocument(payload);
+        await this.documentsApi.publishSimpleDocument(payload);
         queuedFile.status = 'done';
-        queuedFile.message = `Pubblicato v${String(published.version).padStart(3, '0')}`;
+        queuedFile.message = 'Salvato in latest + legacy';
         successCount += 1;
       } catch (error: any) {
         queuedFile.status = 'error';
@@ -120,20 +122,14 @@ export class UploadFacadeService {
     return {
       id: `file-${++this.fileCounter}`,
       file,
-      platform: '',
-      docType: '',
-      lang: '',
-      effectiveDate: this.getTodayDate(),
       status: 'pending'
     };
   }
 
-  private isReadyForPublish(file: QueuedFile): file is QueuedFile & { docType: DocType } {
-    return Boolean(file.platform && file.docType && file.lang && file.effectiveDate);
-  }
-
-  private getTodayDate(): string {
-    return new Date().toISOString().split('T')[0];
+  private isPdf(file: File): boolean {
+    const byType = file.type === 'application/pdf';
+    const byName = /\.pdf$/i.test(file.name);
+    return byType || byName;
   }
 
   private readFileAsBase64(file: File): Promise<string> {
@@ -145,4 +141,3 @@ export class UploadFacadeService {
     });
   }
 }
-

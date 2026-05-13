@@ -5,12 +5,8 @@
     <table class="table table-sm align-middle mb-0">
       <thead>
         <tr>
-          <th style="width: 40%">File</th>
-          <th style="width: 15%">Piattaforma</th>
-          <th style="width: 12%">Tipo</th>
-          <th style="width: 10%">Lingua</th>
-          <th style="width: 13%">Data</th>
-          <th style="width: 10%"></th>
+          <th style="width: 80%">File</th>
+          <th style="width: 20%"></th>
         </tr>
       </thead>
       <tbody>
@@ -34,33 +30,6 @@
               }
             </td>
             <td>
-              <select class="form-select form-select-sm" [(ngModel)]="qf.platform" [disabled]="qf.status === 'uploading'">
-                <option value="">-- Piattaforma --</option>
-                @for (p of platformOptions; track p.id) {
-                  <option [value]="p.id">{{ p.label }}</option>
-                }
-              </select>
-            </td>
-            <td>
-              <select class="form-select form-select-sm" [(ngModel)]="qf.docType" [disabled]="qf.status === 'uploading'">
-                <option value="">-- Tipo --</option>
-                <option value="terms">terms</option>
-                <option value="privacy">privacy</option>
-                <option value="cookie">cookie</option>
-              </select>
-            </td>
-            <td>
-              <select class="form-select form-select-sm" [(ngModel)]="qf.lang" [disabled]="qf.status === 'uploading'">
-                <option value="">-- Lingua --</option>
-                @for (lang of langOptions; track lang) {
-                  <option [value]="lang">{{ lang }}</option>
-                }
-              </select>
-            </td>
-            <td>
-              <input type="date" class="form-control form-control-sm" [(ngModel)]="qf.effectiveDate" [disabled]="qf.status === 'uploading'" />
-            </td>
-            <td>
               <button
                 class="btn btn-sm btn-outline-danger"
                 (click)="removeRequested.emit(qf.id)"
@@ -78,8 +47,7 @@
   <div class="d-flex justify-content-between align-items-center mt-3">
     <small class="text-secondary">{{ queuedFiles.length }} file in coda</small>
     <button class="btn btn-primary" [disabled]="!canPublish" (click)="publishRequested.emit()">
-      Pubblica
+      Salva file
     </button>
   </div>
 }
-

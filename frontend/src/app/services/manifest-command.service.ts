@@ -4,6 +4,7 @@ import {
   PublicLatestEntry,
   PublicLatestResponse,
   PublishPayload,
+  SimplePublishPayload,
   RestorePayload
 } from './api.models';
 import { GithubContentRepository } from './github-content.repository';
@@ -102,6 +103,37 @@ export class ManifestCommandService {
     }
 
     throw lastError;
+  }
+
+  async publishSimpleDocument(
+    payload: SimplePublishPayload
+  ): Promise<{ latestPath: string; legacyPath: string }> {
+    const dateStr = payload.date;
+    const latestPath = `latest/${payload.line}/${payload.lang}/${payload.docType}.pdf`;
+    const legacyPath = `legacy/${payload.line}/${payload.lang}/${payload.docType}_${dateStr}.pdf`;
+
+    await this.githubRepo.upsertFile({
+      owner: payload.repoOwner,
+      repo: payload.repoName,
+      branch: payload.branch,
+      path: latestPath,
+      contentBase64: payload.contentBase64,
+      message: `docs: latest ${payload.line}/${payload.lang}/${payload.docType}`,
+      token: payload.githubToken
+    });
+
+    await this.githubRepo.upsertFile({
+      owner: payload.repoOwner,
+      repo: payload.repoName,
+      branch: payload.branch,
+      path: legacyPath,
+      contentBase64: payload.contentBase64,
+      message: `docs: legacy ${payload.line}/${payload.lang}/${payload.docType}_${dateStr}`,
+      token: payload.githubToken
+    });
+
+    this.runtimeConfig.clearCachedManifest();
+    return { latestPath, legacyPath };
   }
 
   async softDeleteDocument(payload: DeletePayload): Promise<void> {
@@ -294,4 +326,3 @@ export class ManifestCommandService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
-

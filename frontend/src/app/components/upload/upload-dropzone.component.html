@@ -6,8 +6,14 @@
   (dragover)="onDragOver($event)"
   (dragleave)="onDragLeave($event)"
 >
-  <p class="mb-2">Trascina qui i file oppure selezionali manualmente.</p>
-  <input id="picker" class="d-none" type="file" multiple (change)="onPickFiles($event)" />
+  <p class="mb-2">Trascina qui file PDF oppure selezionali manualmente.</p>
+  <input
+    id="picker"
+    class="d-none"
+    type="file"
+    accept=".pdf,application/pdf"
+    multiple
+    (change)="onPickFiles($event)"
+  />
   <label for="picker" class="btn btn-outline-primary btn-sm">Seleziona file</label>
 </div>
-
