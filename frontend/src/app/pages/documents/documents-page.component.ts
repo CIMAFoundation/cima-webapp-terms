@@ -46,7 +46,7 @@ export class DocumentsPageComponent {
   }
 
   get canDelete(): boolean {
-    return this.auth.canEditConfiguration();
+    return this.auth.canViewConfiguration();
   }
 
   get publicReferenceUrl(): string {
@@ -55,34 +55,45 @@ export class DocumentsPageComponent {
 
   async onSoftDelete(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
-    if (!confirm(`Vuoi spostare nel cestino ${ids.length} documeni?\nSolo una conferma necessaria.`)) return;
+    if (!confirm(`Vuoi spostare nel cestino ${ids.length} documenti?\nSolo una conferma necessaria.`)) return;
 
     this.loading = true;
     this.statusMessage = '';
     try {
       const github = this.runtimeConfig.getGithubRepoConfig();
-      let count = 0;
+      const payloads: Array<{
+        platform: string;
+        docType: 'terms' | 'privacy' | 'cookie';
+        lang: string;
+        githubToken: string;
+        repoOwner: string;
+        repoName: string;
+        branch: string;
+        manifestPath: string;
+        filePath: string;
+      }> = [];
       for (const id of ids) {
         const doc = this.documents.find((d) => d.id === id);
         if (!doc) continue;
         const filePath = this.extractFilePath(doc.downloadUrl);
-        await this.documentsApi.softDeleteDocument({
+        payloads.push({
           platform: doc.platform,
           docType: doc.docType,
           lang: doc.lang,
-          githubToken: this.runtimeConfig.getGithubToken(),
+          githubToken: '__server__',
           repoOwner: github.owner,
           repoName: github.repo,
           branch: github.branch,
           manifestPath: github.manifestPath,
           filePath
         });
-        count++;
       }
+      await this.documentsApi.softDeleteDocuments(payloads);
+      const count = payloads.length;
       this.statusMessage = `✓ ${count} documenti spostati nel cestino.`;
       await this.loadDocuments();
     } catch (error: any) {
-      this.statusMessage = `Errore: ${error?.message || 'sconosciuto'}`;
+      this.statusMessage = this.formatApiError(error);
     } finally {
       this.loading = false;
     }
@@ -104,7 +115,7 @@ export class DocumentsPageComponent {
           platform: doc.platform,
           docType: doc.docType,
           lang: doc.lang,
-          githubToken: this.runtimeConfig.getGithubToken(),
+          githubToken: '__server__',
           repoOwner: github.owner,
           repoName: github.repo,
           branch: github.branch,
@@ -115,7 +126,7 @@ export class DocumentsPageComponent {
       this.statusMessage = `✓ ${count} documenti ripristinati.`;
       await this.loadDocuments();
     } catch (error: any) {
-      this.statusMessage = `Errore: ${error?.message || 'sconosciuto'}`;
+      this.statusMessage = this.formatApiError(error);
     } finally {
       this.loading = false;
     }
@@ -136,14 +147,14 @@ export class DocumentsPageComponent {
       const github = this.runtimeConfig.getGithubRepoConfig();
       let count = 0;
       for (const id of ids) {
-        const doc = this.deletedDocuments.find((d) => d.id === id);
+        const doc = this.deletedDocuments.find((d) => d.id === id) || this.documents.find((d) => d.id === id);
         if (!doc) continue;
         const filePath = this.extractFilePath(doc.downloadUrl);
         await this.documentsApi.hardDeleteDocument({
           platform: doc.platform,
           docType: doc.docType,
           lang: doc.lang,
-          githubToken: this.runtimeConfig.getGithubToken(),
+          githubToken: '__server__',
           repoOwner: github.owner,
           repoName: github.repo,
           branch: github.branch,
@@ -155,7 +166,7 @@ export class DocumentsPageComponent {
       this.statusMessage = `✓ ${count} documenti eliminati definitivamente.`;
       await this.loadDocuments();
     } catch (error: any) {
-      this.statusMessage = `Errore: ${error?.message || 'sconosciuto'}`;
+      this.statusMessage = this.formatApiError(error);
     } finally {
       this.loading = false;
     }
@@ -200,5 +211,14 @@ export class DocumentsPageComponent {
     // Extract path after /raw.githubusercontent.com/{owner}/{repo}/{branch}/ (legacy/fallback)
     const rawMatch = downloadUrl.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(.+)/);
     return rawMatch ? rawMatch[1] : '';
+  }
+
+  private formatApiError(error: any): string {
+    const status = Number(error?.status || 0);
+    if (status === 401 || status === 403) {
+      return 'Errore: backend admin non autorizzato a GitHub (controlla token server-side).';
+    }
+    const message = String(error?.error?.message || error?.message || '').trim();
+    return `Errore: ${message || 'sconosciuto'}`;
   }
 }

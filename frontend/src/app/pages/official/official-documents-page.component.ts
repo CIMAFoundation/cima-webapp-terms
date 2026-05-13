@@ -10,7 +10,6 @@ interface OfficialRow {
   platform: string;
   docType: string;
   lang: string;
-  version: number;
   effectiveDate: string;
   publicUrl: string;
   downloadUrl: string;
@@ -41,10 +40,6 @@ export class OfficialDocumentsPageComponent {
     return `${row.platform}-${row.docType}-${row.lang}-${row.line}`;
   }
 
-  formatVersion(version: number): string {
-    return `v${String(version).padStart(3, '0')}`;
-  }
-
   formatEffectiveDate(value: string): string {
     const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return value || '-';
@@ -65,7 +60,6 @@ export class OfficialDocumentsPageComponent {
             platform,
             docType,
             lang,
-            version: entry.version,
             effectiveDate: entry.effectiveDate,
             publicUrl: entry.url,
             downloadUrl: entry.downloadUrl,

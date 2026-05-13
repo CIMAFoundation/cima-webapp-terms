@@ -103,3 +103,18 @@ Normale latenza: commit -> action -> GitHub Pages/CDN -> webapp.
 - Il token è lato browser (`localStorage`): usarlo solo in ambienti controllati.
 - Servono permessi repo write e `actions:read` per monitor.
 - Non condividere export config contenenti token.
+
+## Admin API locale (token server-side)
+
+Per operazioni documenti (`soft delete`, `restore`, `hard delete`) il frontend puo usare
+`/api/admin/*` inoltrato dal proxy Angular a `http://127.0.0.1:8787`.
+
+Avvio backend:
+
+```bash
+cd ..
+export GITHUB_ADMIN_TOKEN="ghp_xxx"
+node backend/admin-server.mjs
+```
+
+In questo flusso il token resta nel processo server, non in `localStorage`.

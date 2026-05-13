@@ -55,6 +55,7 @@
       <app-documents-list 
         [documents]="documents" 
         [canDelete]="canDelete"
+        [canHardDelete]="canDelete"
         (deleteRequested)="onSoftDelete($event)" />
 
       @if (statusMessage) {

@@ -73,6 +73,4 @@ export class DocumentsListComponent {
     this.hardDeleteRequested.emit(Array.from(this.selectedIds));
     this.selectedIds.clear();
   }
-
-  protected readonly String = String;
 }

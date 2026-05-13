@@ -20,18 +20,17 @@
           <thead>
             <tr>
               <th>Linea</th>
-              <th>Piattaforma</th>
-              <th>Tipo</th>
-              <th>Lingua</th>
-              <th>Versione</th>
-              <th>Data</th>
-              <th>PDF pubblico</th>
-            </tr>
-          </thead>
+                <th>Piattaforma</th>
+                <th>Tipo</th>
+                <th>Lingua</th>
+                <th>Data</th>
+                <th>PDF pubblico</th>
+              </tr>
+            </thead>
           <tbody>
             @if (!rows.length) {
               <tr>
-                <td colspan="7" class="text-secondary">Nessun documento ufficiale disponibile.</td>
+                <td colspan="6" class="text-secondary">Nessun documento ufficiale disponibile.</td>
               </tr>
             }
             @for (row of rows; track trackByKey($index, row)) {
@@ -40,7 +39,6 @@
                 <td>{{ row.platform }}</td>
                 <td>{{ row.docType }}</td>
                 <td>{{ row.lang }}</td>
-                <td>{{ formatVersion(row.version) }}</td>
                 <td>{{ formatEffectiveDate(row.effectiveDate) }}</td>
                 <td>
                   <a [href]="row.publicUrl" [attr.download]="row.downloadFileName || null">

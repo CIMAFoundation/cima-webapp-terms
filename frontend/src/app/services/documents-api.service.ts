@@ -10,11 +10,13 @@ import {
 } from './api.models';
 import { ManifestCommandService } from './manifest-command.service';
 import { ManifestQueryService } from './manifest-query.service';
+import { AdminApiService } from './admin-api.service';
 
 @Injectable({ providedIn: 'root' })
 export class DocumentsApiService {
   private readonly manifestQuery = inject(ManifestQueryService);
   private readonly manifestCommands = inject(ManifestCommandService);
+  private readonly adminApi = inject(AdminApiService);
 
   getDocuments(
     _manifestUrl: string,
@@ -44,14 +46,39 @@ export class DocumentsApiService {
   }
 
   async softDeleteDocument(payload: DeletePayload): Promise<void> {
-    return this.manifestCommands.softDeleteDocument(payload);
+    return this.adminApi.softDeleteDocument({
+      platform: payload.platform,
+      docType: payload.docType,
+      lang: payload.lang,
+      filePath: payload.filePath
+    });
+  }
+
+  async softDeleteDocuments(payloads: DeletePayload[]): Promise<void> {
+    return this.adminApi.softDeleteBatch(
+      payloads.map((payload) => ({
+        platform: payload.platform,
+        docType: payload.docType,
+        lang: payload.lang,
+        filePath: payload.filePath
+      }))
+    );
   }
 
   async restoreDocument(payload: RestorePayload): Promise<void> {
-    return this.manifestCommands.restoreDocument(payload);
+    return this.adminApi.restoreDocument({
+      platform: payload.platform,
+      docType: payload.docType,
+      lang: payload.lang
+    });
   }
 
   async hardDeleteDocument(payload: DeletePayload): Promise<void> {
-    return this.manifestCommands.hardDeleteDocument(payload);
+    return this.adminApi.hardDeleteDocument({
+      platform: payload.platform,
+      docType: payload.docType,
+      lang: payload.lang,
+      filePath: payload.filePath
+    });
   }
 }

@@ -10,15 +10,13 @@
         <th>File</th>
         <th>Scope</th>
         <th>Data</th>
-        <th>Version</th>
-        <th>Hash</th>
         <th>Download</th>
       </tr>
     </thead>
     <tbody>
       @if (!documents.length) {
         <tr>
-          <td [attr.colspan]="canDelete || canHardDelete ? 7 : 6" class="text-secondary text-center py-3">Nessun documento.</td>
+          <td [attr.colspan]="canDelete || canHardDelete ? 5 : 4" class="text-secondary text-center py-3">Nessun documento.</td>
         </tr>
       }
       @for (doc of documents; track trackById($index, doc)) {
@@ -37,8 +35,6 @@
           </td>
           <td>{{ doc.platform }} / {{ doc.docType }} / {{ doc.lang }}</td>
           <td>{{ formatEffectiveDate(doc.effectiveDate) }}</td>
-          <td>v{{ String(doc.version).padStart(3, '0') }}</td>
-          <td><code>{{ doc.sha256.slice(0, 10) }}...</code></td>
           <td>
             <a
               class="btn btn-sm btn-outline-primary"
@@ -67,7 +63,16 @@
           [disabled]="selectedIds.size === 0"
           (click)="onDeleteSelected()"
         >
-          Elimina Selezionati
+          Sposta nel cestino
+        </button>
+      }
+      @if (canHardDelete) {
+        <button
+          class="btn btn-outline-danger"
+          [disabled]="selectedIds.size === 0"
+          (click)="onHardDeleteSelected()"
+        >
+          Elimina Definitivamente
         </button>
       }
     } @else if (documents[0] && isDeleted(documents[0])) {
