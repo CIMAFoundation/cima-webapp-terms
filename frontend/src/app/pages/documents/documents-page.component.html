@@ -22,11 +22,11 @@
                     <input class="form-control" formControlName="search" />
                 </div>
                 <div class="col-12 col-lg-3">
-                    <label class="form-label">Piattaforma</label>
-                    <select class="form-select" formControlName="platform">
+                    <label class="form-label">Linea</label>
+                    <select class="form-select" formControlName="line">
                         <option value="">tutte</option>
-                        @for (platform of platforms; track platform.id) {
-                            <option [value]="platform.id">{{ platform.label }}</option>
+                        @for (line of lines; track line) {
+                            <option [value]="line">{{ line }}</option>
                         }
                     </select>
                 </div>

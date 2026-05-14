@@ -3,7 +3,7 @@ import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { DocumentsListComponent } from '../../components/documents-list/documents-list.component';
-import { DocumentDto, PlatformOption } from '../../services/api.models';
+import { DocumentDto } from '../../services/api.models';
 import { AuthService } from '../../services/auth.service';
 import { ConfigApiService } from '../../services/config-api.service';
 import { DocumentsApiService } from '../../services/documents-api.service';
@@ -26,14 +26,14 @@ export class DocumentsPageComponent {
 
   readonly filterForm = this.fb.group({
     search: [''],
-    platform: [''],
+    line: [''],
     docType: [''],
     lang: ['']
   });
 
   documents: DocumentDto[] = [];
   deletedDocuments: DocumentDto[] = [];
-  platforms: PlatformOption[] = [];
+  lines: string[] = [];
   languages = ['it', 'en', 'fr', 'es', 'pt'];
   showDeleted = false;
   loading = false;
@@ -179,11 +179,8 @@ export class DocumentsPageComponent {
   private async loadConfig(): Promise<void> {
     try {
       const cfg = await firstValueFrom(this.configApi.getInfraConfig());
-      this.platforms = cfg.platforms || [];
       this.languages = cfg.languages?.length ? cfg.languages : this.languages;
-    } catch {
-      this.platforms = [];
-    }
+    } catch {}
   }
 
   private async loadDocuments(): Promise<void> {
@@ -191,7 +188,7 @@ export class DocumentsPageComponent {
     const response = await firstValueFrom(
       this.manifestQuery.getDocuments({
         search: formValue.search || undefined,
-        platform: formValue.platform || undefined,
+        line: formValue.line || undefined,
         docType: formValue.docType || undefined,
         lang: formValue.lang || undefined,
         includeDeleted: true
@@ -199,6 +196,10 @@ export class DocumentsPageComponent {
     );
     this.documents = (response.documents || []).filter((d) => !d.deletedAt);
     this.deletedDocuments = (response.documents || []).filter((d) => d.deletedAt);
+    const all = [...this.documents, ...this.deletedDocuments];
+    this.lines = Array.from(new Set(all.map((d) => String(d.line || '-')))).sort((a, b) =>
+      a.localeCompare(b)
+    );
   }
 
   private extractFilePath(downloadUrl: string): string {

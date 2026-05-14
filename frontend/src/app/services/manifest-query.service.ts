@@ -11,7 +11,7 @@ import { RuntimeConfigService } from './runtime-config.service';
 
 export interface DocumentFilters {
   search?: string;
-  platform?: string;
+  line?: string;
   docType?: string;
   lang?: string;
   includeDeleted?: boolean;
@@ -33,11 +33,11 @@ export class ManifestQueryService {
             if (!filters.includeDeleted && doc.deletedAt) return false;
             if (filters.search) {
               const search = filters.search.toLowerCase();
-              const haystack = `${doc.originalFileName} ${doc.downloadFileName} ${doc.platform} ${doc.docType}`
+              const haystack = `${doc.originalFileName} ${doc.downloadFileName} ${doc.line || ''} ${doc.platform} ${doc.docType}`
                 .toLowerCase();
               if (!haystack.includes(search)) return false;
             }
-            if (filters.platform && doc.platform !== filters.platform) return false;
+            if (filters.line && (doc.line || '-') !== filters.line) return false;
             if (filters.docType && doc.docType !== filters.docType) return false;
             if (filters.lang && doc.lang !== filters.lang) return false;
             return true;
