@@ -33,7 +33,7 @@
               <div class="small text-danger">Eliminato il {{ formatDeletedDate(doc.deletedAt) }}</div>
             }
           </td>
-          <td>{{ doc.platform }} / {{ doc.docType }} / {{ doc.lang }}</td>
+          <td>{{ doc.line || '-' }} / {{ doc.docType }} / {{ doc.lang }}</td>
           <td>{{ formatEffectiveDate(doc.effectiveDate) }}</td>
           <td>
             <a

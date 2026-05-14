@@ -36,4 +36,17 @@ export class AdminApiService {
   }): Promise<void> {
     await firstValueFrom(this.http.post<void>(`${this.baseUrl}/documents/hard-delete`, payload));
   }
+
+  async uploadDocument(payload: {
+    line: string;
+    lang: string;
+    docType: string;
+    date: string;
+    fileName: string;
+    contentBase64: string;
+  }): Promise<{ latestPath: string; legacyPath: string }> {
+    return firstValueFrom(
+      this.http.post<{ latestPath: string; legacyPath: string }>(`${this.baseUrl}/documents/upload`, payload)
+    );
+  }
 }

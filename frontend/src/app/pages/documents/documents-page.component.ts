@@ -60,16 +60,10 @@ export class DocumentsPageComponent {
     this.loading = true;
     this.statusMessage = '';
     try {
-      const github = this.runtimeConfig.getGithubRepoConfig();
       const payloads: Array<{
         platform: string;
         docType: 'terms' | 'privacy' | 'cookie';
         lang: string;
-        githubToken: string;
-        repoOwner: string;
-        repoName: string;
-        branch: string;
-        manifestPath: string;
         filePath: string;
       }> = [];
       for (const id of ids) {
@@ -80,11 +74,6 @@ export class DocumentsPageComponent {
           platform: doc.platform,
           docType: doc.docType,
           lang: doc.lang,
-          githubToken: '__server__',
-          repoOwner: github.owner,
-          repoName: github.repo,
-          branch: github.branch,
-          manifestPath: github.manifestPath,
           filePath
         });
       }
@@ -106,7 +95,6 @@ export class DocumentsPageComponent {
     this.loading = true;
     this.statusMessage = '';
     try {
-      const github = this.runtimeConfig.getGithubRepoConfig();
       let count = 0;
       for (const id of ids) {
         const doc = this.deletedDocuments.find((d) => d.id === id);
@@ -114,12 +102,7 @@ export class DocumentsPageComponent {
         await this.documentsApi.restoreDocument({
           platform: doc.platform,
           docType: doc.docType,
-          lang: doc.lang,
-          githubToken: '__server__',
-          repoOwner: github.owner,
-          repoName: github.repo,
-          branch: github.branch,
-          manifestPath: github.manifestPath
+          lang: doc.lang
         });
         count++;
       }
@@ -144,7 +127,6 @@ export class DocumentsPageComponent {
     this.loading = true;
     this.statusMessage = '';
     try {
-      const github = this.runtimeConfig.getGithubRepoConfig();
       let count = 0;
       for (const id of ids) {
         const doc = this.deletedDocuments.find((d) => d.id === id) || this.documents.find((d) => d.id === id);
@@ -154,11 +136,6 @@ export class DocumentsPageComponent {
           platform: doc.platform,
           docType: doc.docType,
           lang: doc.lang,
-          githubToken: '__server__',
-          repoOwner: github.owner,
-          repoName: github.repo,
-          branch: github.branch,
-          manifestPath: github.manifestPath,
           filePath
         });
         count++;

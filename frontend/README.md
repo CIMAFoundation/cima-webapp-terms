@@ -42,15 +42,14 @@ Da pagina Upload:
 
 ## Dati mostrati in FE
 
-- Tab `Documenti` e `Ufficiali` prova prima manifest pubblico.
-- Se manifest non disponibile, fallback su `assets/latest-index.json`.
-- Cache locale manifest: chiavi `webterms_cached_manifest*`.
+- Tab `Documenti` e `Ufficiali` leggono `assets/latest-index.json`.
+- Cache locale indice: chiavi `webterms_cached_latest_index*`.
 
 Reset cache rapido (browser console):
 
 ```js
-localStorage.removeItem('webterms_cached_manifest');
-localStorage.removeItem('webterms_cached_manifest_ttl');
+localStorage.removeItem('webterms_cached_latest_index');
+localStorage.removeItem('webterms_cached_latest_index_ttl');
 ```
 
 ## Backend admin richiesto per operazioni distruttive
@@ -60,7 +59,7 @@ Operazioni:
 - restore
 - hard delete
 
-Senza backend attivo: upload può funzionare (GitHub API da FE), ma delete/restore no.
+Senza backend attivo: upload/delete/restore/hard-delete non funzionano.
 
 ## Troubleshooting
 
@@ -68,7 +67,7 @@ Senza backend attivo: upload può funzionare (GitHub API da FE), ma delete/resto
 
 1. Controlla `assets/latest-index.json` live.
 2. Hard refresh browser (`Cmd+Shift+R`).
-3. Pulisci cache `webterms_cached_manifest*`.
+3. Pulisci cache `webterms_cached_latest_index*`.
 4. Verifica deploy FE aggiornato.
 
 ### Errore 401/403 su admin API

@@ -8,6 +8,7 @@ import {
   PublicLatestResponse
 } from './api.models';
 import { RuntimeConfigService } from './runtime-config.service';
+import { latestIndexToCanonicalDocType } from './doc-type-map';
 
 export interface DocumentFilters {
   search?: string;
@@ -21,8 +22,6 @@ export interface DocumentFilters {
 export class ManifestQueryService {
   private readonly http = inject(HttpClient);
   private readonly runtimeConfig = inject(RuntimeConfigService);
-  private static readonly LATEST_INDEX_URL =
-    'https://cimafoundation.github.io/cima-legal-public-docs/assets/latest-index.json';
 
   getDocuments(filters: DocumentFilters): Observable<DocumentsResponse> {
     return this.getPublicLatest().pipe(
@@ -48,76 +47,43 @@ export class ManifestQueryService {
   }
 
   getPublicLatest(): Observable<PublicLatestResponse> {
-    const primaryUrl = this.runtimeConfig.getManifestUrl();
-    const fallbackUrl = this.runtimeConfig.getFallbackManifestUrl();
-
-    const cached = this.runtimeConfig.getCachedManifest();
+    const latestIndexUrl = this.runtimeConfig.getLatestIndexUrl();
+    const cached = this.runtimeConfig.getCachedLatestIndex();
     if (cached) {
       return new Observable((observer) => {
-        observer.next(cached.manifest as PublicLatestResponse);
+        observer.next(cached.value as PublicLatestResponse);
         observer.complete();
       });
     }
 
     const t = Date.now();
-    const primaryWithBuster = primaryUrl.includes('?') ? `${primaryUrl}&t=${t}` : `${primaryUrl}?t=${t}`;
-    const fallbackWithBuster = fallbackUrl.includes('?')
-      ? `${fallbackUrl}&t=${t}`
-      : `${fallbackUrl}?t=${t}`;
+    const withBuster = latestIndexUrl.includes('?') ? `${latestIndexUrl}&t=${t}` : `${latestIndexUrl}?t=${t}`;
 
     return new Observable((observer) => {
-      this.http.get<PublicLatestResponse>(primaryWithBuster).subscribe({
-        next: (response) => {
-          this.runtimeConfig.setCachedManifest(response);
-          observer.next(response);
-          observer.complete();
-        },
-        error: () => {
-          this.http.get<PublicLatestResponse>(fallbackWithBuster).subscribe({
-            next: (response) => {
-              this.runtimeConfig.setCachedManifest(response);
-              observer.next(response);
-              observer.complete();
-            },
-            error: () => {
-              this.loadFromLatestIndex(observer);
-            }
-          });
-        }
-      });
-    });
-  }
-
-  private loadFromLatestIndex(observer: {
-    next: (value: PublicLatestResponse) => void;
-    complete: () => void;
-    error: (err: unknown) => void;
-  }): void {
-    const t = Date.now();
-    const latestIndexUrl = `${ManifestQueryService.LATEST_INDEX_URL}?t=${t}`;
-    this.http
-      .get<{ rows?: Array<{ line?: string; lang?: string; docType?: string; effectiveDate?: string; publicUrl?: string; downloadFileName?: string }> }>(latestIndexUrl)
-      .subscribe({
-        next: (payload) => {
-          const response = this.latestIndexToManifest(payload?.rows || []);
-          this.runtimeConfig.setCachedManifest(response);
-          observer.next(response);
-          observer.complete();
-        },
-        error: (latestIndexError) => {
-          const cachedRaw = localStorage.getItem('webterms_cached_manifest');
-          if (cachedRaw) {
-            try {
-              observer.next(JSON.parse(cachedRaw) as PublicLatestResponse);
-              observer.complete();
-              return;
-            } catch {
-              // ignore stale invalid cache
-            }
+      this.http
+        .get<{
+          rows?: Array<{
+            line?: string;
+            lang?: string;
+            docType?: string;
+            effectiveDate?: string;
+            publicUrl?: string;
+            downloadFileName?: string;
+            deletedAt?: string;
+          }>;
+        }>(withBuster)
+        .subscribe({
+          next: (payload) => {
+            const response = this.latestIndexToManifest(payload?.rows || []);
+            this.runtimeConfig.setCachedLatestIndex(response);
+            observer.next(response);
+            observer.complete();
+          },
+          error: (error) => {
+            observer.error(error);
           }
-          observer.error(latestIndexError);
-        }
-      });
+        });
+    });
   }
 
   private latestIndexToManifest(
@@ -128,12 +94,14 @@ export class ManifestQueryService {
       effectiveDate?: string;
       publicUrl?: string;
       downloadFileName?: string;
+      deletedAt?: string;
     }>
   ): PublicLatestResponse {
     const latest: PublicLatestResponse['latest'] = {};
     for (const row of rows) {
-      const platform = String(row.line || '-').trim() || '-';
-      const docType = this.mapLatestDocType(String(row.docType || '').trim());
+      const line = String(row.line || '-').trim() || '-';
+      const platform = line;
+      const docType = latestIndexToCanonicalDocType(String(row.docType || '').trim());
       const lang = String(row.lang || '-').trim() || '-';
       const publicUrl = String(row.publicUrl || '').trim();
       const effectiveDate = String(row.effectiveDate || '').trim() || new Date().toISOString().slice(0, 10);
@@ -142,26 +110,19 @@ export class ManifestQueryService {
       latest[platform] = latest[platform] || {};
       latest[platform][docType] = latest[platform][docType] || {};
       latest[platform][docType][lang] = {
-        id: `${platform}-${docType}-${lang}`,
-        line: platform,
+        id: `${line}-${docType}-${lang}`,
+        line,
         version: 1,
         effectiveDate,
         sha256: '',
         url: publicUrl,
         downloadUrl: publicUrl,
         originalFileName: fileName,
-        downloadFileName: fileName
+        downloadFileName: fileName,
+        deletedAt: row.deletedAt ? String(row.deletedAt) : undefined
       };
     }
     return { latest };
-  }
-
-  private mapLatestDocType(value: string): 'terms' | 'privacy' | 'cookie' {
-    if (value === 'terms-of-use') return 'terms';
-    if (value === 'privacy-policy') return 'privacy';
-    if (value === 'cookie-policy') return 'cookie';
-    if (value === 'terms' || value === 'privacy' || value === 'cookie') return value;
-    return 'terms';
   }
 
   private flattenLatest(latest: PublicLatestResponse['latest']): DocumentDto[] {

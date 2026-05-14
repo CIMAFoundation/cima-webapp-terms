@@ -59,32 +59,10 @@ export interface PublicLatestResponse {
   latest: Record<string, Record<string, Record<string, PublicLatestEntry>>>;
 }
 
-export interface PublishPayload {
-  platform: string;
-  line?: string;
-  docType: 'terms' | 'privacy' | 'cookie';
-  lang: string;
-  effectiveDate: string;
-  fileName: string;
-  contentBase64: string;
-  githubToken: string;
-  repoOwner: string;
-  repoName: string;
-  branch: string;
-  documentsRootPath: string;
-  manifestPath: string;
-  publicBaseUrl: string;
-}
-
 export interface DeletePayload {
   platform: string;
   docType: 'terms' | 'privacy' | 'cookie';
   lang: string;
-  githubToken: string;
-  repoOwner: string;
-  repoName: string;
-  branch: string;
-  manifestPath: string;
   filePath: string;
 }
 
@@ -92,11 +70,6 @@ export interface RestorePayload {
   platform: string;
   docType: 'terms' | 'privacy' | 'cookie';
   lang: string;
-  githubToken: string;
-  repoOwner: string;
-  repoName: string;
-  branch: string;
-  manifestPath: string;
 }
 
 export interface SimplePublishPayload {

@@ -27,7 +27,6 @@ export ADMIN_API_PORT=8787
 export GITHUB_OWNER=CIMAFoundation
 export GITHUB_REPO=cima-legal-public-docs
 export GITHUB_BRANCH=main
-export MANIFEST_PATH=legal-docs/manifests/latest.json
 export GITHUB_ADMIN_TOKEN='PASTE_NEW_TOKEN'
 
 node backend/admin-server.mjs
@@ -43,7 +42,10 @@ Atteso: `tokenConfigured: true`
 
 ## Nota indice pubblico
 
-Hard delete ora aggiorna anche `assets/latest-index.json` quando file rimosso da `latest/...`.
+Admin API lavora in modalita `manifest-zero`:
+- upload aggiorna `latest/`, `legacy/`, `assets/latest-index.json`
+- soft-delete/restore aggiornano `deletedAt` in `assets/latest-index.json`
+- hard-delete rimuove file `latest/...` + riga da `assets/latest-index.json`
 
 ## Sicurezza
 

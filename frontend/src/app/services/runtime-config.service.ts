@@ -5,104 +5,59 @@ export interface GithubRepoConfig {
   repo: string;
   branch: string;
   documentsRootPath: string;
-  manifestPath: string;
   publicBaseUrl: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class RuntimeConfigService {
-  private static readonly MANIFEST_URL_KEY = 'webterms_manifest_url';
-  private static readonly CACHED_MANIFEST_KEY = 'webterms_cached_manifest';
-  private static readonly CACHED_MANIFEST_TTL_KEY = 'webterms_cached_manifest_ttl';
-  private static readonly GITHUB_TOKEN_KEY = 'webterms_github_token';
+  private static readonly CACHED_INDEX_KEY = 'webterms_cached_latest_index';
+  private static readonly CACHED_INDEX_TTL_KEY = 'webterms_cached_latest_index_ttl';
   private static readonly GITHUB_REPO_CONFIG_KEY = 'webterms_github_repo_config';
-
-  // GitHub Pages URL (primary, stable - Corporate Repo)
-  private static readonly PAGES_MANIFEST_URL =
-    'https://cimafoundation.github.io/cima-legal-public-docs/legal-docs/manifests/latest.json';
-
-  // Corporate repo URLs (fallback)
-  private static readonly CORPORATE_MANIFEST_URL =
-    'https://raw.githubusercontent.com/CIMAFoundation/cima-legal-public-docs/main/legal-docs/manifests/latest.json';
+  private static readonly LATEST_INDEX_URL =
+    'https://cimafoundation.github.io/cima-legal-public-docs/assets/latest-index.json';
 
   // Corporate repo defaults
   private static readonly DEFAULT_REPO_CONFIG: GithubRepoConfig = {
     owner: 'CIMAFoundation',
     repo: 'cima-legal-public-docs',
     branch: 'main',
-    documentsRootPath: 'legal-docs/files',
-    manifestPath: 'legal-docs/manifests/latest.json',
+    documentsRootPath: 'latest',
     publicBaseUrl: 'https://cimafoundation.github.io/cima-legal-public-docs'
   };
 
   private static readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-  /**
-   * Gets the manifest URL for reading.
-   * Priority: 1) User custom, 2) GitHub Pages, 3) Corporate raw (fallback)
-   */
-  getManifestUrl(): string {
-    const custom = localStorage.getItem(RuntimeConfigService.MANIFEST_URL_KEY);
-    // If custom URL is the old raw content or old personal site, override it to the new one
-    if (custom && (custom.includes('raw.githubusercontent.com') || custom.includes('dedandy.github.io'))) {
-      this.clearCachedManifest(); // purge cache when auto-migrating
-      return RuntimeConfigService.PAGES_MANIFEST_URL;
-    }
-    if (custom) return custom;
-    return RuntimeConfigService.PAGES_MANIFEST_URL;
+  getLatestIndexUrl(): string {
+    return RuntimeConfigService.LATEST_INDEX_URL;
   }
 
-  /**
-   * Gets fallback URL if primary fails.
-   */
-  getFallbackManifestUrl(): string {
-    return RuntimeConfigService.CORPORATE_MANIFEST_URL;
-  }
-
-  setManifestUrl(url: string): void {
-    localStorage.setItem(RuntimeConfigService.MANIFEST_URL_KEY, url.trim());
-  }
-
-  // Cached manifest management
-  getCachedManifest(): { manifest: unknown; timestamp: number } | null {
+  getCachedLatestIndex(): { value: unknown; timestamp: number } | null {
     try {
-      const raw = localStorage.getItem(RuntimeConfigService.CACHED_MANIFEST_KEY);
-      const ttlRaw = localStorage.getItem(RuntimeConfigService.CACHED_MANIFEST_TTL_KEY);
+      const raw = localStorage.getItem(RuntimeConfigService.CACHED_INDEX_KEY);
+      const ttlRaw = localStorage.getItem(RuntimeConfigService.CACHED_INDEX_TTL_KEY);
       if (!raw || !ttlRaw) return null;
       
       const ttl = parseInt(ttlRaw, 10);
       if (Date.now() > ttl) {
-        this.clearCachedManifest();
+        this.clearCachedLatestIndex();
         return null;
       }
       
-      return { manifest: JSON.parse(raw), timestamp: ttl };
+      return { value: JSON.parse(raw), timestamp: ttl };
     } catch {
       return null;
     }
   }
 
-  setCachedManifest(manifest: unknown): void {
+  setCachedLatestIndex(value: unknown): void {
     const ttl = Date.now() + RuntimeConfigService.CACHE_TTL_MS;
-    localStorage.setItem(RuntimeConfigService.CACHED_MANIFEST_KEY, JSON.stringify(manifest));
-    localStorage.setItem(RuntimeConfigService.CACHED_MANIFEST_TTL_KEY, ttl.toString());
+    localStorage.setItem(RuntimeConfigService.CACHED_INDEX_KEY, JSON.stringify(value));
+    localStorage.setItem(RuntimeConfigService.CACHED_INDEX_TTL_KEY, ttl.toString());
   }
 
-  clearCachedManifest(): void {
-    localStorage.removeItem(RuntimeConfigService.CACHED_MANIFEST_KEY);
-    localStorage.removeItem(RuntimeConfigService.CACHED_MANIFEST_TTL_KEY);
-  }
-
-  getGithubToken(): string {
-    return localStorage.getItem(RuntimeConfigService.GITHUB_TOKEN_KEY) || '';
-  }
-
-  setGithubToken(token: string): void {
-    localStorage.setItem(RuntimeConfigService.GITHUB_TOKEN_KEY, token.trim());
-  }
-
-  clearGithubToken(): void {
-    localStorage.removeItem(RuntimeConfigService.GITHUB_TOKEN_KEY);
+  clearCachedLatestIndex(): void {
+    localStorage.removeItem(RuntimeConfigService.CACHED_INDEX_KEY);
+    localStorage.removeItem(RuntimeConfigService.CACHED_INDEX_TTL_KEY);
   }
 
   /**
@@ -129,7 +84,6 @@ export class RuntimeConfigService {
         branch: parsed.branch || RuntimeConfigService.DEFAULT_REPO_CONFIG.branch,
         documentsRootPath:
           parsed.documentsRootPath || RuntimeConfigService.DEFAULT_REPO_CONFIG.documentsRootPath,
-        manifestPath: parsed.manifestPath || RuntimeConfigService.DEFAULT_REPO_CONFIG.manifestPath,
         publicBaseUrl: savedBaseUrl || RuntimeConfigService.DEFAULT_REPO_CONFIG.publicBaseUrl
       };
     } catch {

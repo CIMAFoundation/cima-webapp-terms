@@ -9,7 +9,6 @@ import {
 } from '../../components/upload/upload-snackbar.component';
 import { UploadQueueTableComponent } from '../../components/upload/upload-queue-table.component';
 import { AuthService } from '../../services/auth.service';
-import { RuntimeConfigService } from '../../services/runtime-config.service';
 import { UploadDocType } from '../../services/api.models';
 import { UploadFacadeService } from '../../services/upload-facade.service';
 
@@ -32,7 +31,6 @@ export class UploadPageComponent {
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
-  private readonly runtimeConfig = inject(RuntimeConfigService);
   readonly uploadFacade = inject(UploadFacadeService);
 
   readonly lineOptions = [
@@ -103,28 +101,13 @@ export class UploadPageComponent {
       return;
     }
 
-    const cfg = this.runtimeConfig.getGithubRepoConfig();
-    const githubToken = this.runtimeConfig.getGithubToken();
-    if (!githubToken) {
-      this.showSnackbar('Token GitHub non configurato in localStorage', 'error');
-      return;
-    }
-
     const values = this.metadataForm.getRawValue();
     const line = String(values.line || '').trim();
     const lang = String(values.lang || '').trim() as UploadLanguage;
     const docType = String(values.docType || '').trim() as UploadDocType;
     const date = String(values.date || '').trim();
 
-    const result = await this.uploadFacade.uploadAll(
-      {
-        githubToken,
-        repoOwner: cfg.owner,
-        repoName: cfg.repo,
-        branch: cfg.branch
-      },
-      { line, lang, docType, date }
-    );
+    const result = await this.uploadFacade.uploadAll({ line, lang, docType, date });
 
     if (result.successCount > 0 && result.errorCount === 0) {
       this.showSnackbar(`${result.successCount} file salvati in latest + legacy`, 'success');

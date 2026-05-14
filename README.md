@@ -38,7 +38,6 @@ export ADMIN_API_PORT=8787
 export GITHUB_OWNER=CIMAFoundation
 export GITHUB_REPO=cima-legal-public-docs
 export GITHUB_BRANCH=main
-export MANIFEST_PATH=legal-docs/manifests/latest.json
 export GITHUB_ADMIN_TOKEN='PASTE_NEW_TOKEN'
 
 node backend/admin-server.mjs

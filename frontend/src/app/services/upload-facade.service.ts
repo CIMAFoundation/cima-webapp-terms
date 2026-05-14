@@ -14,13 +14,6 @@ export interface UploadBatchResult {
   errorCount: number;
 }
 
-export interface UploadGithubConfig {
-  githubToken: string;
-  repoOwner: string;
-  repoName: string;
-  branch: string;
-}
-
 export interface UploadMetadata {
   line: string;
   lang: 'it' | 'en' | 'fr' | 'es' | 'pt';
@@ -78,7 +71,7 @@ export class UploadFacadeService {
     );
   }
 
-  async uploadAll(github: UploadGithubConfig, metadata: UploadMetadata): Promise<UploadBatchResult> {
+  async uploadAll(metadata: UploadMetadata): Promise<UploadBatchResult> {
     this.queuedFiles.forEach((f) => {
       f.status = 'uploading';
       f.message = undefined;
@@ -96,10 +89,10 @@ export class UploadFacadeService {
           date: metadata.date,
           fileName: queuedFile.file.name,
           contentBase64: await this.readFileAsBase64(queuedFile.file),
-          githubToken: github.githubToken,
-          repoOwner: github.repoOwner,
-          repoName: github.repoName,
-          branch: github.branch
+          githubToken: '__server__',
+          repoOwner: '',
+          repoName: '',
+          branch: ''
         };
 
         await this.documentsApi.publishSimpleDocument(payload);

@@ -6,7 +6,6 @@ const GITHUB_TOKEN = String(process.env.GITHUB_ADMIN_TOKEN || '').trim();
 const GITHUB_OWNER = String(process.env.GITHUB_OWNER || 'CIMAFoundation').trim();
 const GITHUB_REPO = String(process.env.GITHUB_REPO || 'cima-legal-public-docs').trim();
 const GITHUB_BRANCH = String(process.env.GITHUB_BRANCH || 'main').trim();
-const MANIFEST_PATH = String(process.env.MANIFEST_PATH || 'legal-docs/manifests/latest.json').trim();
 const LATEST_INDEX_PATH = 'assets/latest-index.json';
 
 function sendJson(res, statusCode, payload) {
@@ -44,22 +43,6 @@ function githubHeaders() {
 
 function contentsUrl(path) {
   return `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
-}
-
-async function fetchManifest() {
-  requireToken();
-  const url = `${contentsUrl(MANIFEST_PATH)}?ref=${encodeURIComponent(GITHUB_BRANCH)}`;
-  const response = await fetch(url, { headers: githubHeaders() });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Manifest read failed (${response.status}): ${text}`);
-  }
-  const payload = await response.json();
-  const content = Buffer.from(String(payload.content || '').replace(/\n/g, ''), 'base64').toString(
-    'utf-8'
-  );
-  const manifest = JSON.parse(content || '{}');
-  return { manifest: manifest?.latest ? manifest : { latest: {} }, sha: String(payload.sha || '') };
 }
 
 async function fetchLatestIndex() {
@@ -142,39 +125,6 @@ async function deleteFile(path, message) {
   }
 }
 
-function getEntryOrThrow(latest, platform, docType, lang) {
-  const entry = latest?.[platform]?.[docType]?.[lang];
-  if (!entry) {
-    const error = new Error(`Document not found: ${platform}/${docType}/${lang}`);
-    error.statusCode = 404;
-    throw error;
-  }
-  return entry;
-}
-
-function decodePublicPath(downloadUrl) {
-  const pagesMatch = String(downloadUrl || '').match(
-    /cimafoundation\.github\.io\/cima-legal-public-docs\/(.+)/
-  );
-  if (pagesMatch) return pagesMatch[1];
-  const rawMatch = String(downloadUrl || '').match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(.+)/);
-  return rawMatch ? rawMatch[1] : '';
-}
-
-function cleanupLatest(latest, platform, docType) {
-  if (!latest?.[platform]?.[docType] || Object.keys(latest[platform][docType]).length === 0) {
-    delete latest?.[platform]?.[docType];
-  }
-  if (!latest?.[platform] || Object.keys(latest[platform]).length === 0) {
-    delete latest?.[platform];
-  }
-}
-
-async function saveManifest(latest, message) {
-  const contentBase64 = Buffer.from(`${JSON.stringify({ latest }, null, 2)}\n`, 'utf-8').toString('base64');
-  await upsertFile(MANIFEST_PATH, contentBase64, message);
-}
-
 async function saveLatestIndex(rows, message) {
   const normalized = [...rows].sort((a, b) => {
     const lineCmp = String(a.line || '').localeCompare(String(b.line || ''));
@@ -202,85 +152,167 @@ function parseLatestFilePath(filePath) {
   };
 }
 
+function normalizeUploadDocType(value) {
+  const raw = String(value || '').trim();
+  if (raw === 'terms-of-use' || raw === 'terms') return 'terms-of-use';
+  if (raw === 'privacy-policy' || raw === 'privacy') return 'privacy-policy';
+  if (raw === 'cookie-policy' || raw === 'cookie') return 'cookie-policy';
+  return raw;
+}
+
+function normalizeCanonicalDocType(value) {
+  const raw = String(value || '').trim();
+  if (raw === 'terms-of-use' || raw === 'terms') return 'terms';
+  if (raw === 'privacy-policy' || raw === 'privacy') return 'privacy';
+  if (raw === 'cookie-policy' || raw === 'cookie') return 'cookie';
+  return raw;
+}
+
+function toCanonicalRowDocType(rowDocType) {
+  return normalizeCanonicalDocType(String(rowDocType || '').trim());
+}
+
+function findRowIndex(rows, criteria) {
+  const line = String(criteria.line || '');
+  const lang = String(criteria.lang || '');
+  const canonicalDocType = normalizeCanonicalDocType(criteria.docType);
+  return rows.findIndex(
+    (row) =>
+      String(row?.line || '') === line &&
+      String(row?.lang || '') === lang &&
+      toCanonicalRowDocType(row?.docType) === canonicalDocType
+  );
+}
+
+function resolveRowCriteria(body) {
+  const filePath = String(body.filePath || '').trim();
+  const parsed = parseLatestFilePath(filePath);
+  if (parsed) return parsed;
+  return {
+    line: String(body.platform || '').trim(),
+    lang: String(body.lang || '').trim(),
+    docType: String(body.docType || '').trim()
+  };
+}
+
+async function uploadDoc(body) {
+  const line = String(body.line || '').trim();
+  const lang = String(body.lang || '').trim();
+  const docType = normalizeUploadDocType(body.docType);
+  const date = String(body.date || '').trim();
+  const fileName = String(body.fileName || '').trim();
+  const contentBase64 = String(body.contentBase64 || '').trim();
+
+  if (!line || !lang || !docType || !date || !fileName || !contentBase64) {
+    const err = new Error('Missing upload fields');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const latestPath = `latest/${line}/${lang}/${docType}.pdf`;
+  const legacyPath = `legacy/${line}/${lang}/${docType}_${date}.pdf`;
+
+  await upsertFile(latestPath, contentBase64, `docs: latest ${line}/${lang}/${docType}`);
+  await upsertFile(legacyPath, contentBase64, `docs: legacy ${line}/${lang}/${docType}_${date}`);
+
+  const latestIndex = await fetchLatestIndex();
+  const nextRows = (latestIndex.rows || []).filter(
+    (row) =>
+      !(
+        String(row?.line || '') === line &&
+        String(row?.lang || '') === lang &&
+        String(row?.docType || '') === docType
+      )
+  );
+  nextRows.push({
+    id: `${line}-${lang}-${docType}`,
+    line,
+    lang,
+    docType,
+    effectiveDate: date,
+    publicUrl: `https://cimafoundation.github.io/cima-legal-public-docs/${latestPath}`,
+    downloadFileName: `${docType}.pdf`
+  });
+  await saveLatestIndex(nextRows, `docs: update latest-index ${line}/${lang}/${docType}`);
+
+  return { latestPath, legacyPath };
+}
+
 async function softDelete(body) {
-  const platform = String(body.platform || '');
-  const docType = String(body.docType || '');
-  const lang = String(body.lang || '');
-  const { manifest } = await fetchManifest();
-  const latest = structuredClone(manifest.latest || {});
-  const entry = getEntryOrThrow(latest, platform, docType, lang);
-  latest[platform][docType][lang] = { ...entry, deletedAt: new Date().toISOString() };
-  await saveManifest(latest, `docs: soft-delete ${platform}/${docType}/${lang}`);
+  const rows = (await fetchLatestIndex()).rows || [];
+  const criteria = resolveRowCriteria(body);
+  const idx = findRowIndex(rows, criteria);
+  if (idx < 0) {
+    const error = new Error(
+      `Document not found: ${criteria.line}/${normalizeCanonicalDocType(criteria.docType)}/${criteria.lang}`
+    );
+    error.statusCode = 404;
+    throw error;
+  }
+  rows[idx] = { ...rows[idx], deletedAt: new Date().toISOString() };
+  await saveLatestIndex(rows, `docs: soft-delete ${criteria.line}/${criteria.lang}/${rows[idx].docType}`);
 }
 
 async function softDeleteBatch(body) {
   const items = Array.isArray(body?.items) ? body.items : [];
   if (!items.length) return;
 
-  const { manifest } = await fetchManifest();
-  const latest = structuredClone(manifest.latest || {});
+  const rows = (await fetchLatestIndex()).rows || [];
   let changed = 0;
 
   for (const item of items) {
-    const platform = String(item?.platform || '');
-    const docType = String(item?.docType || '');
-    const lang = String(item?.lang || '');
-    if (!platform || !docType || !lang) continue;
-
-    const entry = latest?.[platform]?.[docType]?.[lang];
-    if (!entry) continue;
-    latest[platform][docType][lang] = { ...entry, deletedAt: new Date().toISOString() };
+    const criteria = resolveRowCriteria(item || {});
+    const idx = findRowIndex(rows, criteria);
+    if (idx < 0) continue;
+    rows[idx] = { ...rows[idx], deletedAt: new Date().toISOString() };
     changed += 1;
   }
 
   if (!changed) return;
-  await saveManifest(latest, `docs: soft-delete batch (${changed})`);
+  await saveLatestIndex(rows, `docs: soft-delete batch (${changed})`);
 }
 
 async function restoreDoc(body) {
-  const platform = String(body.platform || '');
-  const docType = String(body.docType || '');
-  const lang = String(body.lang || '');
-  const { manifest } = await fetchManifest();
-  const latest = structuredClone(manifest.latest || {});
-  const entry = getEntryOrThrow(latest, platform, docType, lang);
-  const nextEntry = { ...entry };
-  delete nextEntry.deletedAt;
-  latest[platform][docType][lang] = nextEntry;
-  await saveManifest(latest, `docs: restore ${platform}/${docType}/${lang}`);
+  const rows = (await fetchLatestIndex()).rows || [];
+  const criteria = resolveRowCriteria(body);
+  const idx = findRowIndex(rows, criteria);
+  if (idx < 0) {
+    const error = new Error(
+      `Document not found: ${criteria.line}/${normalizeCanonicalDocType(criteria.docType)}/${criteria.lang}`
+    );
+    error.statusCode = 404;
+    throw error;
+  }
+  const next = { ...rows[idx] };
+  delete next.deletedAt;
+  rows[idx] = next;
+  await saveLatestIndex(rows, `docs: restore ${criteria.line}/${criteria.lang}/${rows[idx].docType}`);
 }
 
 async function hardDelete(body) {
-  const platform = String(body.platform || '');
-  const docType = String(body.docType || '');
-  const lang = String(body.lang || '');
-  const { manifest } = await fetchManifest();
-  const latest = structuredClone(manifest.latest || {});
-  const entry = getEntryOrThrow(latest, platform, docType, lang);
-  const filePath = String(body.filePath || decodePublicPath(entry.downloadUrl || entry.url || '') || '');
-  if (!filePath) {
-    throw new Error(`File path missing for ${platform}/${docType}/${lang}`);
-  }
-
-  await deleteFile(filePath, `docs: hard-delete ${platform}/${docType}/${lang}`);
-
-  const latestInfo = parseLatestFilePath(filePath);
-  if (latestInfo) {
-    const latestIndex = await fetchLatestIndex();
-    const nextRows = (latestIndex.rows || []).filter(
-      (row) =>
-        !(
-          String(row?.line || '') === latestInfo.line &&
-          String(row?.lang || '') === latestInfo.lang &&
-          String(row?.docType || '') === latestInfo.docType
-        )
+  const rows = (await fetchLatestIndex()).rows || [];
+  const criteria = resolveRowCriteria(body);
+  const idx = findRowIndex(rows, criteria);
+  if (idx < 0) {
+    const error = new Error(
+      `Document not found: ${criteria.line}/${normalizeCanonicalDocType(criteria.docType)}/${criteria.lang}`
     );
-    await saveLatestIndex(nextRows, `docs: latest-index remove ${latestInfo.line}/${latestInfo.lang}/${latestInfo.docType}`);
+    error.statusCode = 404;
+    throw error;
   }
 
-  delete latest?.[platform]?.[docType]?.[lang];
-  cleanupLatest(latest, platform, docType);
-  await saveManifest(latest, `docs: hard-delete ${platform}/${docType}/${lang}`);
+  const row = rows[idx];
+  const filePath = String(
+    body.filePath || `latest/${row.line}/${row.lang}/${row.docType}.pdf`
+  ).trim();
+
+  await deleteFile(
+    filePath,
+    `docs: hard-delete ${criteria.line}/${normalizeCanonicalDocType(criteria.docType)}/${criteria.lang}`
+  );
+
+  const nextRows = rows.filter((_, i) => i !== idx);
+  await saveLatestIndex(nextRows, `docs: latest-index remove ${row.line}/${row.lang}/${row.docType}`);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -296,7 +328,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         repo: `${GITHUB_OWNER}/${GITHUB_REPO}`,
         branch: GITHUB_BRANCH,
-        manifestPath: MANIFEST_PATH,
+        indexPath: LATEST_INDEX_PATH,
         tokenConfigured: Boolean(GITHUB_TOKEN)
       });
       return;
@@ -327,6 +359,13 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       await hardDelete(body);
       sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/admin/documents/upload') {
+      const body = await readBody(req);
+      const result = await uploadDoc(body);
+      sendJson(res, 200, result);
       return;
     }
 

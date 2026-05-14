@@ -3,26 +3,23 @@ import { Observable } from 'rxjs';
 import {
   DocumentsResponse,
   PublicLatestResponse,
-  PublishPayload,
   DeletePayload,
   RestorePayload,
   SimplePublishPayload
 } from './api.models';
-import { ManifestCommandService } from './manifest-command.service';
 import { ManifestQueryService } from './manifest-query.service';
 import { AdminApiService } from './admin-api.service';
 
 @Injectable({ providedIn: 'root' })
 export class DocumentsApiService {
   private readonly manifestQuery = inject(ManifestQueryService);
-  private readonly manifestCommands = inject(ManifestCommandService);
   private readonly adminApi = inject(AdminApiService);
 
   getDocuments(
     _manifestUrl: string,
     filters: {
       search?: string;
-      platform?: string;
+      line?: string;
       docType?: string;
       lang?: string;
       includeDeleted?: boolean;
@@ -35,14 +32,17 @@ export class DocumentsApiService {
     return this.manifestQuery.getPublicLatest();
   }
 
-  async publishDocument(payload: PublishPayload): Promise<{ version: number; filePath: string }> {
-    return this.manifestCommands.publishDocument(payload);
-  }
-
   async publishSimpleDocument(
     payload: SimplePublishPayload
   ): Promise<{ latestPath: string; legacyPath: string }> {
-    return this.manifestCommands.publishSimpleDocument(payload);
+    return this.adminApi.uploadDocument({
+      line: payload.line,
+      lang: payload.lang,
+      docType: payload.docType,
+      date: payload.date,
+      fileName: payload.fileName,
+      contentBase64: payload.contentBase64
+    });
   }
 
   async softDeleteDocument(payload: DeletePayload): Promise<void> {
