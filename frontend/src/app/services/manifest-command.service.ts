@@ -14,6 +14,21 @@ interface HttpLikeError {
   status?: number;
 }
 
+interface LatestIndexRow {
+  id: string;
+  line: string;
+  lang: string;
+  docType: string;
+  effectiveDate: string;
+  publicUrl: string;
+  downloadFileName: string;
+}
+
+interface LatestIndexPayload {
+  generatedAt: string;
+  rows: LatestIndexRow[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ManifestCommandService {
   private readonly runtimeConfig = inject(RuntimeConfigService);
@@ -111,6 +126,7 @@ export class ManifestCommandService {
     const dateStr = payload.date;
     const latestPath = `latest/${payload.line}/${payload.lang}/${payload.docType}.pdf`;
     const legacyPath = `legacy/${payload.line}/${payload.lang}/${payload.docType}_${dateStr}.pdf`;
+    const latestIndexPath = 'assets/latest-index.json';
 
     await this.githubRepo.upsertFile({
       owner: payload.repoOwner,
@@ -129,6 +145,48 @@ export class ManifestCommandService {
       path: legacyPath,
       contentBase64: payload.contentBase64,
       message: `docs: legacy ${payload.line}/${payload.lang}/${payload.docType}_${dateStr}`,
+      token: payload.githubToken
+    });
+
+    const latestIndex = await this.githubRepo.readJsonFile<LatestIndexPayload>({
+      owner: payload.repoOwner,
+      repo: payload.repoName,
+      branch: payload.branch,
+      path: latestIndexPath,
+      token: payload.githubToken
+    });
+    const rows = Array.isArray(latestIndex?.rows) ? [...latestIndex.rows] : [];
+    const nextRow: LatestIndexRow = {
+      id: `${payload.line}-${payload.lang}-${payload.docType}`,
+      line: payload.line,
+      lang: payload.lang,
+      docType: payload.docType,
+      effectiveDate: dateStr,
+      publicUrl: `https://cimafoundation.github.io/cima-legal-public-docs/${latestPath}`,
+      downloadFileName: `${payload.docType}.pdf`
+    };
+    const filtered = rows.filter(
+      (row) =>
+        !(
+          String(row.line || '') === payload.line &&
+          String(row.lang || '') === payload.lang &&
+          String(row.docType || '') === payload.docType
+        )
+    );
+    filtered.push(nextRow);
+    filtered.sort((a, b) => a.line.localeCompare(b.line) || a.lang.localeCompare(b.lang) || a.docType.localeCompare(b.docType));
+    const nextIndex: LatestIndexPayload = {
+      generatedAt: new Date().toISOString(),
+      rows: filtered
+    };
+
+    await this.githubRepo.upsertFile({
+      owner: payload.repoOwner,
+      repo: payload.repoName,
+      branch: payload.branch,
+      path: latestIndexPath,
+      contentBase64: this.encodeUtf8ToBase64(`${JSON.stringify(nextIndex, null, 2)}\n`),
+      message: `docs: update latest-index ${payload.line}/${payload.lang}/${payload.docType}`,
       token: payload.githubToken
     });
 

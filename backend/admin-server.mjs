@@ -7,6 +7,7 @@ const GITHUB_OWNER = String(process.env.GITHUB_OWNER || 'CIMAFoundation').trim()
 const GITHUB_REPO = String(process.env.GITHUB_REPO || 'cima-legal-public-docs').trim();
 const GITHUB_BRANCH = String(process.env.GITHUB_BRANCH || 'main').trim();
 const MANIFEST_PATH = String(process.env.MANIFEST_PATH || 'legal-docs/manifests/latest.json').trim();
+const LATEST_INDEX_PATH = 'assets/latest-index.json';
 
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
@@ -59,6 +60,27 @@ async function fetchManifest() {
   );
   const manifest = JSON.parse(content || '{}');
   return { manifest: manifest?.latest ? manifest : { latest: {} }, sha: String(payload.sha || '') };
+}
+
+async function fetchLatestIndex() {
+  requireToken();
+  const url = `${contentsUrl(LATEST_INDEX_PATH)}?ref=${encodeURIComponent(GITHUB_BRANCH)}`;
+  const response = await fetch(url, { headers: githubHeaders() });
+  if (response.status === 404) {
+    return { generatedAt: new Date().toISOString(), rows: [] };
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Latest index read failed (${response.status}): ${text}`);
+  }
+  const payload = await response.json();
+  const content = Buffer.from(String(payload.content || '').replace(/\n/g, ''), 'base64').toString('utf-8');
+  const parsed = JSON.parse(content || '{}');
+  const rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
+  return {
+    generatedAt: String(parsed?.generatedAt || new Date().toISOString()),
+    rows
+  };
 }
 
 async function upsertFile(path, contentBase64, message) {
@@ -153,6 +175,33 @@ async function saveManifest(latest, message) {
   await upsertFile(MANIFEST_PATH, contentBase64, message);
 }
 
+async function saveLatestIndex(rows, message) {
+  const normalized = [...rows].sort((a, b) => {
+    const lineCmp = String(a.line || '').localeCompare(String(b.line || ''));
+    if (lineCmp !== 0) return lineCmp;
+    const langCmp = String(a.lang || '').localeCompare(String(b.lang || ''));
+    if (langCmp !== 0) return langCmp;
+    return String(a.docType || '').localeCompare(String(b.docType || ''));
+  });
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    rows: normalized
+  };
+  const contentBase64 = Buffer.from(`${JSON.stringify(payload, null, 2)}\n`, 'utf-8').toString('base64');
+  await upsertFile(LATEST_INDEX_PATH, contentBase64, message);
+}
+
+function parseLatestFilePath(filePath) {
+  const normalized = String(filePath || '').replace(/^\/+/, '');
+  const match = normalized.match(/^latest\/([^/]+)\/([^/]+)\/([^/]+)\.pdf$/i);
+  if (!match) return null;
+  return {
+    line: match[1],
+    lang: match[2],
+    docType: match[3]
+  };
+}
+
 async function softDelete(body) {
   const platform = String(body.platform || '');
   const docType = String(body.docType || '');
@@ -214,6 +263,21 @@ async function hardDelete(body) {
   }
 
   await deleteFile(filePath, `docs: hard-delete ${platform}/${docType}/${lang}`);
+
+  const latestInfo = parseLatestFilePath(filePath);
+  if (latestInfo) {
+    const latestIndex = await fetchLatestIndex();
+    const nextRows = (latestIndex.rows || []).filter(
+      (row) =>
+        !(
+          String(row?.line || '') === latestInfo.line &&
+          String(row?.lang || '') === latestInfo.lang &&
+          String(row?.docType || '') === latestInfo.docType
+        )
+    );
+    await saveLatestIndex(nextRows, `docs: latest-index remove ${latestInfo.line}/${latestInfo.lang}/${latestInfo.docType}`);
+  }
+
   delete latest?.[platform]?.[docType]?.[lang];
   cleanupLatest(latest, platform, docType);
   await saveManifest(latest, `docs: hard-delete ${platform}/${docType}/${lang}`);
