@@ -2,6 +2,11 @@
 
 Server Node locale per operazioni admin GitHub con token server-side.
 
+## Stato
+
+Questa implementazione Node e legacy/optional.
+Flusso consigliato attuale: API PHP in `frontend/public/api` (deploy sotto `/webterms/api/*.php`).
+
 ## Endpoint
 
 - `GET /api/admin/health`

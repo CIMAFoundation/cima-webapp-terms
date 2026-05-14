@@ -5,7 +5,7 @@ Backoffice Angular per upload, gestione documenti, vista ufficiale.
 ## Requisiti
 
 - Node LTS 22 (`.nvmrc` root repo).
-- Backend admin avviato su `127.0.0.1:8787` per delete/restore/hard-delete.
+- API PHP avviata su `127.0.0.1:8787` per upload/delete/restore/hard-delete.
 
 ## Avvio locale
 
@@ -21,8 +21,16 @@ npm start
 URL: `http://localhost:4200`
 
 `npm start` usa proxy `proxy.conf.json`:
-- `/api/admin/*` -> `http://127.0.0.1:8787/api/admin/*`
-- `/webterms/api/*` -> rewrite `/api/*` (utile con base `/webterms/`)
+- `/api/*` -> `http://127.0.0.1:8787/api/*`
+
+Avvio API locale:
+
+```bash
+cd /Users/deda/WebstormProjects/cima-webapp-terms
+cp frontend/public/webterms.env.php.example frontend/public/webterms.env.php
+# compila frontend/public/webterms.env.php
+php -S 127.0.0.1:8787 -t frontend/public
+```
 
 ## Build
 
@@ -52,14 +60,15 @@ localStorage.removeItem('webterms_cached_latest_index');
 localStorage.removeItem('webterms_cached_latest_index_ttl');
 ```
 
-## Backend admin richiesto per operazioni distruttive
+## API richiesta per operazioni admin
 
 Operazioni:
+- upload
 - soft delete
 - restore
 - hard delete
 
-Senza backend attivo: upload/delete/restore/hard-delete non funzionano.
+Senza API attiva: upload/delete/restore/hard-delete non funzionano.
 
 ## Troubleshooting
 
@@ -70,6 +79,6 @@ Senza backend attivo: upload/delete/restore/hard-delete non funzionano.
 3. Pulisci cache `webterms_cached_latest_index*`.
 4. Verifica deploy FE aggiornato.
 
-### Errore 401/403 su admin API
+### Errore 401/403 su API PHP
 
-Controlla variabile `GITHUB_ADMIN_TOKEN` nel backend.
+Controlla `GITHUB_ADMIN_TOKEN` in `frontend/public/webterms.env.php`.

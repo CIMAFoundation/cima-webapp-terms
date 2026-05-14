@@ -6,8 +6,8 @@ import { firstValueFrom } from 'rxjs';
 export class AdminApiService {
   private readonly http = inject(HttpClient);
   // Relative path keeps API under current app base href:
-  // dev -> /api/admin, prod under /webterms -> /webterms/api/admin
-  private readonly baseUrl = 'api/admin';
+  // dev -> /api (proxied), prod under /webterms -> /webterms/api
+  private readonly baseUrl = 'api';
 
   async softDeleteDocument(payload: {
     platform: string;
@@ -15,17 +15,17 @@ export class AdminApiService {
     lang: string;
     filePath?: string;
   }): Promise<void> {
-    await firstValueFrom(this.http.post<void>(`${this.baseUrl}/documents/soft-delete`, payload));
+    await firstValueFrom(this.http.post<void>(`${this.baseUrl}/soft-delete.php`, payload));
   }
 
   async softDeleteBatch(
     items: Array<{ platform: string; docType: string; lang: string; filePath?: string }>
   ): Promise<void> {
-    await firstValueFrom(this.http.post<void>(`${this.baseUrl}/documents/soft-delete-batch`, { items }));
+    await firstValueFrom(this.http.post<void>(`${this.baseUrl}/soft-delete-batch.php`, { items }));
   }
 
   async restoreDocument(payload: { platform: string; docType: string; lang: string }): Promise<void> {
-    await firstValueFrom(this.http.post<void>(`${this.baseUrl}/documents/restore`, payload));
+    await firstValueFrom(this.http.post<void>(`${this.baseUrl}/restore.php`, payload));
   }
 
   async hardDeleteDocument(payload: {
@@ -34,7 +34,7 @@ export class AdminApiService {
     lang: string;
     filePath?: string;
   }): Promise<void> {
-    await firstValueFrom(this.http.post<void>(`${this.baseUrl}/documents/hard-delete`, payload));
+    await firstValueFrom(this.http.post<void>(`${this.baseUrl}/hard-delete.php`, payload));
   }
 
   async uploadDocument(payload: {
@@ -46,7 +46,7 @@ export class AdminApiService {
     contentBase64: string;
   }): Promise<{ latestPath: string; legacyPath: string }> {
     return firstValueFrom(
-      this.http.post<{ latestPath: string; legacyPath: string }>(`${this.baseUrl}/documents/upload`, payload)
+      this.http.post<{ latestPath: string; legacyPath: string }>(`${this.baseUrl}/upload.php`, payload)
     );
   }
 }
