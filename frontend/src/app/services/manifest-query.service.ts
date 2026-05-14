@@ -21,6 +21,8 @@ export interface DocumentFilters {
 export class ManifestQueryService {
   private readonly http = inject(HttpClient);
   private readonly runtimeConfig = inject(RuntimeConfigService);
+  private static readonly LATEST_INDEX_URL =
+    'https://cimafoundation.github.io/cima-legal-public-docs/assets/latest-index.json';
 
   getDocuments(filters: DocumentFilters): Observable<DocumentsResponse> {
     return this.getPublicLatest().pipe(
@@ -77,23 +79,89 @@ export class ManifestQueryService {
               observer.next(response);
               observer.complete();
             },
-            error: (fallbackError) => {
-              const cachedRaw = localStorage.getItem('webterms_cached_manifest');
-              if (cachedRaw) {
-                try {
-                  observer.next(JSON.parse(cachedRaw) as PublicLatestResponse);
-                  observer.complete();
-                  return;
-                } catch {
-                  // ignore stale invalid cache
-                }
-              }
-              observer.error(fallbackError);
+            error: () => {
+              this.loadFromLatestIndex(observer);
             }
           });
         }
       });
     });
+  }
+
+  private loadFromLatestIndex(observer: {
+    next: (value: PublicLatestResponse) => void;
+    complete: () => void;
+    error: (err: unknown) => void;
+  }): void {
+    const t = Date.now();
+    const latestIndexUrl = `${ManifestQueryService.LATEST_INDEX_URL}?t=${t}`;
+    this.http
+      .get<{ rows?: Array<{ line?: string; lang?: string; docType?: string; effectiveDate?: string; publicUrl?: string; downloadFileName?: string }> }>(latestIndexUrl)
+      .subscribe({
+        next: (payload) => {
+          const response = this.latestIndexToManifest(payload?.rows || []);
+          this.runtimeConfig.setCachedManifest(response);
+          observer.next(response);
+          observer.complete();
+        },
+        error: (latestIndexError) => {
+          const cachedRaw = localStorage.getItem('webterms_cached_manifest');
+          if (cachedRaw) {
+            try {
+              observer.next(JSON.parse(cachedRaw) as PublicLatestResponse);
+              observer.complete();
+              return;
+            } catch {
+              // ignore stale invalid cache
+            }
+          }
+          observer.error(latestIndexError);
+        }
+      });
+  }
+
+  private latestIndexToManifest(
+    rows: Array<{
+      line?: string;
+      lang?: string;
+      docType?: string;
+      effectiveDate?: string;
+      publicUrl?: string;
+      downloadFileName?: string;
+    }>
+  ): PublicLatestResponse {
+    const latest: PublicLatestResponse['latest'] = {};
+    for (const row of rows) {
+      const platform = String(row.line || '-').trim() || '-';
+      const docType = this.mapLatestDocType(String(row.docType || '').trim());
+      const lang = String(row.lang || '-').trim() || '-';
+      const publicUrl = String(row.publicUrl || '').trim();
+      const effectiveDate = String(row.effectiveDate || '').trim() || new Date().toISOString().slice(0, 10);
+      const fileName = String(row.downloadFileName || `${row.docType || 'document'}.pdf`);
+
+      latest[platform] = latest[platform] || {};
+      latest[platform][docType] = latest[platform][docType] || {};
+      latest[platform][docType][lang] = {
+        id: `${platform}-${docType}-${lang}`,
+        line: platform,
+        version: 1,
+        effectiveDate,
+        sha256: '',
+        url: publicUrl,
+        downloadUrl: publicUrl,
+        originalFileName: fileName,
+        downloadFileName: fileName
+      };
+    }
+    return { latest };
+  }
+
+  private mapLatestDocType(value: string): 'terms' | 'privacy' | 'cookie' {
+    if (value === 'terms-of-use') return 'terms';
+    if (value === 'privacy-policy') return 'privacy';
+    if (value === 'cookie-policy') return 'cookie';
+    if (value === 'terms' || value === 'privacy' || value === 'cookie') return value;
+    return 'terms';
   }
 
   private flattenLatest(latest: PublicLatestResponse['latest']): DocumentDto[] {

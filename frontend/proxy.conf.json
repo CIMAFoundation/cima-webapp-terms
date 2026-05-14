@@ -4,5 +4,14 @@
     "secure": false,
     "changeOrigin": false,
     "logLevel": "warn"
+  },
+  "/webterms/api": {
+    "target": "http://127.0.0.1:8787",
+    "secure": false,
+    "changeOrigin": false,
+    "logLevel": "warn",
+    "pathRewrite": {
+      "^/webterms/api": "/api"
+    }
   }
 }

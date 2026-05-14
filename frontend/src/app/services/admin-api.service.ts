@@ -5,7 +5,9 @@ import { firstValueFrom } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = '/api/admin';
+  // Relative path keeps API under current app base href:
+  // dev -> /api/admin, prod under /webterms -> /webterms/api/admin
+  private readonly baseUrl = 'api/admin';
 
   async softDeleteDocument(payload: {
     platform: string;
