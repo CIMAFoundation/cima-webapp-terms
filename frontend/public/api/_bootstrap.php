@@ -87,7 +87,7 @@ function github_request(string $method, string $path, ?array $body = null): arra
         . '/contents/' . ltrim($path, '/');
 
     if ($method === 'GET') {
-        $sep = str_contains($url, '?') ? '&' : '?';
+        $sep = strpos($url, '?') !== false ? '&' : '?';
         $url .= $sep . 'ref=' . rawurlencode((string) $cfg['GITHUB_BRANCH']);
     }
 
@@ -106,7 +106,7 @@ function github_request(string $method, string $path, ?array $body = null): arra
         out(500, ['error' => 'GitHub request failed: ' . $err]);
     }
 
-    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
     $json = json_decode((string) $raw, true);
@@ -129,23 +129,31 @@ function parse_latest_file_path(string $filePath): ?array
 function normalize_upload_doc_type(string $value): string
 {
     $raw = trim($value);
-    return match ($raw) {
-        'terms', 'terms-of-use' => 'terms-of-use',
-        'privacy', 'privacy-policy' => 'privacy-policy',
-        'cookie', 'cookie-policy' => 'cookie-policy',
-        default => $raw
-    };
+    if ($raw === 'terms' || $raw === 'terms-of-use') {
+        return 'terms-of-use';
+    }
+    if ($raw === 'privacy' || $raw === 'privacy-policy') {
+        return 'privacy-policy';
+    }
+    if ($raw === 'cookie' || $raw === 'cookie-policy') {
+        return 'cookie-policy';
+    }
+    return $raw;
 }
 
 function normalize_canonical_doc_type(string $value): string
 {
     $raw = trim($value);
-    return match ($raw) {
-        'terms', 'terms-of-use' => 'terms',
-        'privacy', 'privacy-policy' => 'privacy',
-        'cookie', 'cookie-policy' => 'cookie',
-        default => $raw
-    };
+    if ($raw === 'terms' || $raw === 'terms-of-use') {
+        return 'terms';
+    }
+    if ($raw === 'privacy' || $raw === 'privacy-policy') {
+        return 'privacy';
+    }
+    if ($raw === 'cookie' || $raw === 'cookie-policy') {
+        return 'cookie';
+    }
+    return $raw;
 }
 
 function canonical_row_doc_type(array $row): string
