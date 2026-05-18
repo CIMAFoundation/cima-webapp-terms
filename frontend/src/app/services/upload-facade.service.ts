@@ -5,6 +5,10 @@ import { DocumentsApiService } from './documents-api.service';
 export interface QueuedFile {
   id: string;
   file: File;
+  line: string;
+  lang: '' | 'it' | 'en' | 'fr' | 'es' | 'pt';
+  docType: '' | UploadDocType;
+  date: string;
   status: 'pending' | 'uploading' | 'done' | 'error';
   message?: string;
 }
@@ -26,6 +30,15 @@ export interface AddFilesResult {
   rejected: string[];
 }
 
+export interface UploadDefaults {
+  line: string;
+  lang: '' | 'it' | 'en' | 'fr' | 'es' | 'pt';
+  docType: '' | UploadDocType;
+  date: string;
+}
+
+export type UploadMetadataField = 'line' | 'lang' | 'docType' | 'date';
+
 @Injectable({ providedIn: 'root' })
 export class UploadFacadeService {
   private readonly documentsApi = inject(DocumentsApiService);
@@ -33,7 +46,7 @@ export class UploadFacadeService {
   queuedFiles: QueuedFile[] = [];
   private fileCounter = 0;
 
-  addFiles(files: FileList | null): AddFilesResult {
+  addFiles(files: FileList | null, defaults: UploadDefaults): AddFilesResult {
     if (!files?.length) return { accepted: 0, rejected: [] };
 
     const existing = new Set(this.queuedFiles.map((f) => `${f.file.name}:${f.file.size}`));
@@ -47,7 +60,7 @@ export class UploadFacadeService {
       }
       const key = `${file.name}:${file.size}`;
       if (!existing.has(key)) {
-        this.queuedFiles.push(this.createFileEntry(file));
+        this.queuedFiles.push(this.createFileEntry(file, defaults));
         accepted += 1;
       }
     }
@@ -63,15 +76,24 @@ export class UploadFacadeService {
     this.queuedFiles = this.queuedFiles.filter((f) => f.status !== 'done');
   }
 
-  canPublish(metadataFormValid: boolean): boolean {
+  updateMetadataField(id: string, field: UploadMetadataField, value: string): void {
+    const item = this.queuedFiles.find((f) => f.id === id);
+    if (!item) return;
+    if (field === 'line') item.line = String(value || '').trim();
+    if (field === 'lang') item.lang = value as UploadDefaults['lang'];
+    if (field === 'docType') item.docType = value as UploadDefaults['docType'];
+    if (field === 'date') item.date = String(value || '').trim();
+  }
+
+  canPublish(): boolean {
     return (
       !this.queuedFiles.some((f) => f.status === 'uploading') &&
-      metadataFormValid &&
+      this.queuedFiles.every((f) => Boolean(f.line && f.lang && f.docType && f.date)) &&
       this.queuedFiles.length > 0
     );
   }
 
-  async uploadAll(metadata: UploadMetadata): Promise<UploadBatchResult> {
+  async uploadAll(): Promise<UploadBatchResult> {
     this.queuedFiles.forEach((f) => {
       f.status = 'uploading';
       f.message = undefined;
@@ -83,10 +105,10 @@ export class UploadFacadeService {
     for (const queuedFile of this.queuedFiles) {
       try {
         const payload: SimplePublishPayload = {
-          line: metadata.line,
-          lang: metadata.lang,
-          docType: metadata.docType,
-          date: metadata.date,
+          line: queuedFile.line,
+          lang: queuedFile.lang as UploadMetadata['lang'],
+          docType: queuedFile.docType as UploadMetadata['docType'],
+          date: queuedFile.date,
           fileName: queuedFile.file.name,
           contentBase64: await this.readFileAsBase64(queuedFile.file),
           githubToken: '__server__',
@@ -111,10 +133,14 @@ export class UploadFacadeService {
     return { successCount, errorCount };
   }
 
-  private createFileEntry(file: File): QueuedFile {
+  private createFileEntry(file: File, defaults: UploadDefaults): QueuedFile {
     return {
       id: `file-${++this.fileCounter}`,
       file,
+      line: defaults.line,
+      lang: defaults.lang,
+      docType: defaults.docType,
+      date: defaults.date,
       status: 'pending'
     };
   }

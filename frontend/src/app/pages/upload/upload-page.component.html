@@ -12,42 +12,6 @@
 
   <section class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-      <h2 class="h5 mb-3">Metadati obbligatori</h2>
-
-      <form [formGroup]="metadataForm" class="row g-3 mb-3">
-        <div class="col-12 col-lg-3">
-          <label class="form-label">Linea</label>
-          <select class="form-select" [class.is-invalid]="hasMetadataError('line')" formControlName="line">
-            <option value="">-- Seleziona linea --</option>
-            @for (line of lineOptions; track line) {
-              <option [value]="line">{{ line }}</option>
-            }
-          </select>
-        </div>
-        <div class="col-12 col-lg-3">
-          <label class="form-label">Lingua</label>
-          <select class="form-select" [class.is-invalid]="hasMetadataError('lang')" formControlName="lang">
-            <option value="">-- Seleziona lingua --</option>
-            @for (lang of langOptions; track lang) {
-              <option [value]="lang">{{ lang }}</option>
-            }
-          </select>
-        </div>
-        <div class="col-12 col-lg-3">
-          <label class="form-label">Doc type</label>
-          <select class="form-select" [class.is-invalid]="hasMetadataError('docType')" formControlName="docType">
-            <option value="">-- Seleziona tipo --</option>
-            @for (docType of docTypeOptions; track docType) {
-              <option [value]="docType">{{ docType }}</option>
-            }
-          </select>
-        </div>
-        <div class="col-12 col-lg-3">
-          <label class="form-label">Data</label>
-          <input type="date" class="form-control" [class.is-invalid]="hasMetadataError('date')" formControlName="date" />
-        </div>
-      </form>
-
       <app-upload-dropzone
         [invalid]="submitAttempted && uploadFacade.queuedFiles.length === 0"
         (filesSelected)="onFilesSelected($event)"
@@ -55,8 +19,12 @@
 
       <app-upload-queue-table
         [queuedFiles]="uploadFacade.queuedFiles"
+        [lineOptions]="lineOptions"
+        [langOptions]="langOptions"
+        [docTypeOptions]="docTypeOptions"
         [canPublish]="canPublish"
         (removeRequested)="onRemoveQueued($event)"
+        (metadataChanged)="uploadFacade.updateMetadataField($event.id, $event.field, $event.value)"
         (publishRequested)="uploadAll()"
       />
     </div>
