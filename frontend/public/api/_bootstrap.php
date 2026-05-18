@@ -117,6 +117,41 @@ function github_request(string $method, string $path, ?array $body = null): arra
     ];
 }
 
+function github_repo_request(string $method, string $apiPath, ?array $body = null): array
+{
+    $cfg = env_config();
+    $token = ensure_token();
+
+    $url = 'https://api.github.com/repos/' . rawurlencode((string) $cfg['GITHUB_OWNER'])
+        . '/' . rawurlencode((string) $cfg['GITHUB_REPO'])
+        . $apiPath;
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, github_headers($token));
+    if ($body !== null) {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_SLASHES));
+    }
+
+    $raw = curl_exec($ch);
+    if ($raw === false) {
+        $err = curl_error($ch);
+        curl_close($ch);
+        out(500, ['error' => 'GitHub request failed: ' . $err]);
+    }
+
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $json = json_decode((string) $raw, true);
+    return [
+        'status' => $status,
+        'json' => is_array($json) ? $json : null,
+        'raw' => (string) $raw
+    ];
+}
+
 function parse_latest_file_path(string $filePath): ?array
 {
     $normalized = ltrim(trim($filePath), '/');
@@ -263,7 +298,13 @@ function delete_file(string $path, string $message): void
 
 function save_latest_index(array $rows, string $message): void
 {
+    $encoded = encoded_latest_index($rows);
     $cfg = env_config();
+    upsert_file((string) $cfg['LATEST_INDEX_PATH'], $encoded, $message);
+}
+
+function encoded_latest_index(array $rows): string
+{
     usort($rows, static function (array $a, array $b): int {
         $lineCmp = strcmp((string) ($a['line'] ?? ''), (string) ($b['line'] ?? ''));
         if ($lineCmp !== 0) {
@@ -280,6 +321,146 @@ function save_latest_index(array $rows, string $message): void
         'generatedAt' => gmdate('c'),
         'rows' => array_values($rows)
     ];
-    $encoded = base64_encode(json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
-    upsert_file((string) $cfg['LATEST_INDEX_PATH'], $encoded, $message);
+    return base64_encode(json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+}
+
+function commit_files_atomic(array $updates, string $message): void
+{
+    $cfg = env_config();
+    $branch = (string) $cfg['GITHUB_BRANCH'];
+
+    $ref = github_repo_request('GET', '/git/ref/heads/' . rawurlencode($branch), null);
+    if ($ref['status'] < 200 || $ref['status'] >= 300 || !is_array($ref['json'])) {
+        out(500, ['error' => 'Read branch ref failed (' . $ref['status'] . '): ' . $ref['raw']]);
+    }
+    $baseCommitSha = (string) (($ref['json']['object']['sha'] ?? ''));
+    if ($baseCommitSha === '') {
+        out(500, ['error' => 'Invalid branch ref payload']);
+    }
+
+    $commit = github_repo_request('GET', '/git/commits/' . rawurlencode($baseCommitSha), null);
+    if ($commit['status'] < 200 || $commit['status'] >= 300 || !is_array($commit['json'])) {
+        out(500, ['error' => 'Read base commit failed (' . $commit['status'] . '): ' . $commit['raw']]);
+    }
+    $baseTreeSha = (string) (($commit['json']['tree']['sha'] ?? ''));
+    if ($baseTreeSha === '') {
+        out(500, ['error' => 'Invalid base commit tree payload']);
+    }
+
+    $treeItems = [];
+    foreach ($updates as $filePath => $contentBase64) {
+        $blob = github_repo_request('POST', '/git/blobs', [
+            'content' => (string) $contentBase64,
+            'encoding' => 'base64'
+        ]);
+        if ($blob['status'] < 200 || $blob['status'] >= 300 || !is_array($blob['json'])) {
+            out(500, ['error' => 'Create blob failed (' . $blob['status'] . '): ' . $blob['raw']]);
+        }
+        $blobSha = (string) (($blob['json']['sha'] ?? ''));
+        if ($blobSha === '') {
+            out(500, ['error' => 'Invalid blob payload']);
+        }
+
+        $treeItems[] = [
+            'path' => ltrim((string) $filePath, '/'),
+            'mode' => '100644',
+            'type' => 'blob',
+            'sha' => $blobSha
+        ];
+    }
+    commit_tree_atomic($baseCommitSha, $baseTreeSha, $treeItems, $message, $branch);
+}
+
+function commit_delete_and_updates_atomic(array $deletePaths, array $updates, string $message): void
+{
+    $cfg = env_config();
+    $branch = (string) $cfg['GITHUB_BRANCH'];
+
+    $ref = github_repo_request('GET', '/git/ref/heads/' . rawurlencode($branch), null);
+    if ($ref['status'] < 200 || $ref['status'] >= 300 || !is_array($ref['json'])) {
+        out(500, ['error' => 'Read branch ref failed (' . $ref['status'] . '): ' . $ref['raw']]);
+    }
+    $baseCommitSha = (string) (($ref['json']['object']['sha'] ?? ''));
+    if ($baseCommitSha === '') {
+        out(500, ['error' => 'Invalid branch ref payload']);
+    }
+
+    $commit = github_repo_request('GET', '/git/commits/' . rawurlencode($baseCommitSha), null);
+    if ($commit['status'] < 200 || $commit['status'] >= 300 || !is_array($commit['json'])) {
+        out(500, ['error' => 'Read base commit failed (' . $commit['status'] . '): ' . $commit['raw']]);
+    }
+    $baseTreeSha = (string) (($commit['json']['tree']['sha'] ?? ''));
+    if ($baseTreeSha === '') {
+        out(500, ['error' => 'Invalid base commit tree payload']);
+    }
+
+    $treeItems = [];
+    foreach ($updates as $filePath => $contentBase64) {
+        $blob = github_repo_request('POST', '/git/blobs', [
+            'content' => (string) $contentBase64,
+            'encoding' => 'base64'
+        ]);
+        if ($blob['status'] < 200 || $blob['status'] >= 300 || !is_array($blob['json'])) {
+            out(500, ['error' => 'Create blob failed (' . $blob['status'] . '): ' . $blob['raw']]);
+        }
+        $blobSha = (string) (($blob['json']['sha'] ?? ''));
+        if ($blobSha === '') {
+            out(500, ['error' => 'Invalid blob payload']);
+        }
+
+        $treeItems[] = [
+            'path' => ltrim((string) $filePath, '/'),
+            'mode' => '100644',
+            'type' => 'blob',
+            'sha' => $blobSha
+        ];
+    }
+
+    foreach ($deletePaths as $path) {
+        $treeItems[] = [
+            'path' => ltrim((string) $path, '/'),
+            'mode' => '100644',
+            'type' => 'blob',
+            'sha' => null
+        ];
+    }
+
+    commit_tree_atomic($baseCommitSha, $baseTreeSha, $treeItems, $message, $branch);
+}
+
+function commit_tree_atomic(string $baseCommitSha, string $baseTreeSha, array $treeItems, string $message, string $branch): void
+{
+
+    $tree = github_repo_request('POST', '/git/trees', [
+        'base_tree' => $baseTreeSha,
+        'tree' => $treeItems
+    ]);
+    if ($tree['status'] < 200 || $tree['status'] >= 300 || !is_array($tree['json'])) {
+        out(500, ['error' => 'Create tree failed (' . $tree['status'] . '): ' . $tree['raw']]);
+    }
+    $newTreeSha = (string) (($tree['json']['sha'] ?? ''));
+    if ($newTreeSha === '') {
+        out(500, ['error' => 'Invalid new tree payload']);
+    }
+
+    $newCommit = github_repo_request('POST', '/git/commits', [
+        'message' => $message,
+        'tree' => $newTreeSha,
+        'parents' => [$baseCommitSha]
+    ]);
+    if ($newCommit['status'] < 200 || $newCommit['status'] >= 300 || !is_array($newCommit['json'])) {
+        out(500, ['error' => 'Create commit failed (' . $newCommit['status'] . '): ' . $newCommit['raw']]);
+    }
+    $newCommitSha = (string) (($newCommit['json']['sha'] ?? ''));
+    if ($newCommitSha === '') {
+        out(500, ['error' => 'Invalid new commit payload']);
+    }
+
+    $moveRef = github_repo_request('PATCH', '/git/refs/heads/' . rawurlencode($branch), [
+        'sha' => $newCommitSha,
+        'force' => false
+    ]);
+    if ($moveRef['status'] < 200 || $moveRef['status'] >= 300) {
+        out(500, ['error' => 'Update branch ref failed (' . $moveRef['status'] . '): ' . $moveRef['raw']]);
+    }
 }

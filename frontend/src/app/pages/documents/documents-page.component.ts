@@ -7,7 +7,7 @@ import { DocumentDto } from '../../services/api.models';
 import { AuthService } from '../../services/auth.service';
 import { ConfigApiService } from '../../services/config-api.service';
 import { DocumentsApiService } from '../../services/documents-api.service';
-import { ManifestQueryService } from '../../services/manifest-query.service';
+import { LatestIndexQueryService } from '../../services/latest-index-query.service';
 import { RuntimeConfigService } from '../../services/runtime-config.service';
 
 @Component({
@@ -19,7 +19,7 @@ import { RuntimeConfigService } from '../../services/runtime-config.service';
 export class DocumentsPageComponent {
   private readonly configApi = inject(ConfigApiService);
   private readonly documentsApi = inject(DocumentsApiService);
-  private readonly manifestQuery = inject(ManifestQueryService);
+  private readonly latestIndexQuery = inject(LatestIndexQueryService);
   private readonly runtimeConfig = inject(RuntimeConfigService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
@@ -163,7 +163,7 @@ export class DocumentsPageComponent {
   private async loadDocuments(): Promise<void> {
     const formValue = this.filterForm.getRawValue();
     const response = await firstValueFrom(
-      this.manifestQuery.getDocuments({
+      this.latestIndexQuery.getDocuments({
         search: formValue.search || undefined,
         line: formValue.line || undefined,
         docType: formValue.docType || undefined,

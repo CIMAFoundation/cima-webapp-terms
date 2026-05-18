@@ -7,12 +7,12 @@ import {
   RestorePayload,
   SimplePublishPayload
 } from './api.models';
-import { ManifestQueryService } from './manifest-query.service';
+import { LatestIndexQueryService } from './latest-index-query.service';
 import { AdminApiService } from './admin-api.service';
 
 @Injectable({ providedIn: 'root' })
 export class DocumentsApiService {
-  private readonly manifestQuery = inject(ManifestQueryService);
+  private readonly latestIndexQuery = inject(LatestIndexQueryService);
   private readonly adminApi = inject(AdminApiService);
 
   getDocuments(
@@ -25,11 +25,11 @@ export class DocumentsApiService {
       includeDeleted?: boolean;
     }
   ): Observable<DocumentsResponse> {
-    return this.manifestQuery.getDocuments(filters);
+    return this.latestIndexQuery.getDocuments(filters);
   }
 
   getPublicLatest(_manifestUrl: string): Observable<PublicLatestResponse> {
-    return this.manifestQuery.getPublicLatest();
+    return this.latestIndexQuery.getPublicLatest();
   }
 
   async publishSimpleDocument(

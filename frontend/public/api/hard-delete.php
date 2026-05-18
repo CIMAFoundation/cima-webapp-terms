@@ -17,8 +17,11 @@ if ($filePath === '') {
     $filePath = 'latest/' . ($row['line'] ?? '') . '/' . ($row['lang'] ?? '') . '/' . ($row['docType'] ?? '') . '.pdf';
 }
 
-delete_file($filePath, 'docs: hard-delete ' . $criteria['line'] . '/' . $criteria['lang'] . '/' . (string) ($criteria['docType'] ?? ''));
 array_splice($rows, $idx, 1);
-save_latest_index($rows, 'docs: latest-index remove ' . ($row['line'] ?? '') . '/' . ($row['lang'] ?? '') . '/' . ($row['docType'] ?? ''));
+commit_delete_and_updates_atomic(
+    [$filePath],
+    [((string) env_config()['LATEST_INDEX_PATH']) => encoded_latest_index($rows)],
+    'docs: hard-delete ' . ($row['line'] ?? '') . '/' . ($row['lang'] ?? '') . '/' . ($row['docType'] ?? '') . ' + latest-index'
+);
 
 out(200, ['ok' => true]);

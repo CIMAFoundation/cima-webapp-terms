@@ -1,6 +1,8 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 
+console.warn('[admin-api][deprecated] Use PHP API under /webterms/api/*.php for production.');
+
 const PORT = Number(process.env.ADMIN_API_PORT || 8787);
 const GITHUB_TOKEN = String(process.env.GITHUB_ADMIN_TOKEN || '').trim();
 const GITHUB_OWNER = String(process.env.GITHUB_OWNER || 'CIMAFoundation').trim();

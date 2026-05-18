@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { PublicLatestEntry } from '../../services/api.models';
-import { ManifestQueryService } from '../../services/manifest-query.service';
+import { LatestIndexQueryService } from '../../services/latest-index-query.service';
 import { RuntimeConfigService } from '../../services/runtime-config.service';
 
 interface OfficialRow {
@@ -23,7 +23,7 @@ interface OfficialRow {
   templateUrl: './official-documents-page.component.html'
 })
 export class OfficialDocumentsPageComponent {
-  private readonly manifestQuery = inject(ManifestQueryService);
+  private readonly latestIndexQuery = inject(LatestIndexQueryService);
   private readonly runtimeConfig = inject(RuntimeConfigService);
 
   rows: OfficialRow[] = [];
@@ -47,7 +47,7 @@ export class OfficialDocumentsPageComponent {
   }
 
   private async load(): Promise<void> {
-    const response = await firstValueFrom(this.manifestQuery.getPublicLatest());
+    const response = await firstValueFrom(this.latestIndexQuery.getPublicLatest());
     const flattened: OfficialRow[] = [];
     const latest = response.latest || {};
     for (const platform of Object.keys(latest)) {

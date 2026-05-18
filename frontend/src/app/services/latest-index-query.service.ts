@@ -19,7 +19,7 @@ export interface DocumentFilters {
 }
 
 @Injectable({ providedIn: 'root' })
-export class ManifestQueryService {
+export class LatestIndexQueryService {
   private readonly http = inject(HttpClient);
   private readonly runtimeConfig = inject(RuntimeConfigService);
 
