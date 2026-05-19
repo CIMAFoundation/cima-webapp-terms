@@ -1,0 +1,32 @@
+<main class="container py-4 py-lg-5">
+  <app-upload-snackbar [snackbar]="snackbar" (dismissed)="dismissSnackbar()" />
+
+  <header class="mb-4">
+    <h1 class="display-6 fw-semibold mb-1">Inserimento documenti</h1>
+    <p class="text-secondary mb-0">
+      Salvataggio diretto su percorsi pubblici:
+      <code>latest/[line]/[lang]/[doc-type].pdf</code> e
+      <code>legacy/[line]/[lang]/[doc-type]_[date].pdf</code>.
+    </p>
+  </header>
+
+  <section class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <app-upload-dropzone
+        [invalid]="submitAttempted && uploadFacade.queuedFiles.length === 0"
+        (filesSelected)="onFilesSelected($event)"
+      />
+
+      <app-upload-queue-table
+        [queuedFiles]="uploadFacade.queuedFiles"
+        [lineOptions]="lineOptions"
+        [langOptions]="langOptions"
+        [docTypeOptions]="docTypeOptions"
+        [canPublish]="canPublish"
+        (removeRequested)="onRemoveQueued($event)"
+        (metadataChanged)="uploadFacade.updateMetadataField($event.id, $event.field, $event.value)"
+        (publishRequested)="uploadAll()"
+      />
+    </div>
+  </section>
+</main>

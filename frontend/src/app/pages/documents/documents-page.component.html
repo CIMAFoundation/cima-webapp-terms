@@ -1,0 +1,91 @@
+<main class="container py-4 py-lg-5">
+  <header class="mb-4">
+    <h2 class="display-6 fw-semibold mb-1">Lista Documenti legali</h2>
+    <p class="text-secondary mb-1">Catalogo pubblico letto da indice latest.</p>
+    @if (publicReferenceUrl) {
+      <p class="mb-0">
+        <a [href]="publicReferenceUrl" target="_blank" rel="noopener">
+          Apri pagina pubblica di riferimento
+        </a>
+      </p>
+    }
+  </header>
+
+  <section class="card border-0 shadow-sm">
+    <div class="card-body">
+        <div>
+            <h2 class="h5 mb-3">Filtri </h2>
+
+            <form [formGroup]="filterForm" class="row g-3 mb-3">
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Cerca</label>
+                    <input class="form-control" formControlName="search" />
+                </div>
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Linea</label>
+                    <select class="form-select" formControlName="line">
+                        <option value="">tutte</option>
+                        @for (line of lines; track line) {
+                            <option [value]="line">{{ line }}</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Tipo</label>
+                    <select class="form-select" formControlName="docType">
+                        <option value="">tutti</option>
+                        <option value="terms">terms</option>
+                        <option value="privacy">privacy</option>
+                        <option value="cookie">cookie</option>
+                    </select>
+                </div>
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Lingua</label>
+                    <select class="form-select" formControlName="lang">
+                        <option value="">tutte</option>
+                        @for (lang of languages; track lang) {
+                            <option [value]="lang">{{ lang }}</option>
+                        }
+                    </select>
+                </div>
+            </form>
+
+        </div>
+
+      <app-documents-list 
+        [documents]="documents" 
+        [canDelete]="canDelete"
+        [canHardDelete]="canDelete"
+        (deleteRequested)="onSoftDelete($event)" />
+
+      @if (statusMessage) {
+        <div class="alert mt-3" [class.alert-success]="statusMessage.startsWith('✓')" [class.alert-danger]="statusMessage.startsWith('Errore')">
+          {{ statusMessage }}
+        </div>
+      }
+
+      @if (canDelete && deletedDocuments.length > 0) {
+        <hr class="my-4" />
+        
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h3 class="h5 mb-0">
+            Documenti eliminati
+            <span class="badge bg-secondary ms-2">{{ deletedDocuments.length }}</span>
+          </h3>
+          <button class="btn btn-sm" [class.btn-outline-secondary]="!showDeleted" [class.btn-secondary]="showDeleted" (click)="toggleShowDeleted()">
+            {{ showDeleted ? 'Nascondi' : 'Mostra' }}
+          </button>
+        </div>
+
+        @if (showDeleted) {
+          <app-documents-list 
+            [documents]="deletedDocuments"
+            [canDelete]="true"
+            [canHardDelete]="true"
+            (restoreRequested)="onRestore($event)"
+            (hardDeleteRequested)="onHardDelete($event)" />
+        }
+      }
+    </div>
+  </section>
+</main>
