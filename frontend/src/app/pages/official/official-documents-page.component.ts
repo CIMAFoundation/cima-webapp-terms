@@ -2,8 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { PublicLatestEntry } from '../../services/api.models';
+import { AppLinksService } from '../../services/app-links.service';
 import { LatestIndexQueryService } from '../../services/latest-index-query.service';
-import { RuntimeConfigService } from '../../services/runtime-config.service';
 
 interface OfficialRow {
   line: string;
@@ -24,12 +24,16 @@ interface OfficialRow {
 })
 export class OfficialDocumentsPageComponent {
   private readonly latestIndexQuery = inject(LatestIndexQueryService);
-  private readonly runtimeConfig = inject(RuntimeConfigService);
+  private readonly appLinks = inject(AppLinksService);
 
   rows: OfficialRow[] = [];
 
   get publicReferenceUrl(): string {
-    return this.runtimeConfig.getGithubRepoConfig().publicBaseUrl.trim();
+    return this.appLinks.publicDocsPageUrl;
+  }
+
+  get legalPublicRepoUrl(): string {
+    return this.appLinks.legalPublicRepoUrl;
   }
 
   constructor() {

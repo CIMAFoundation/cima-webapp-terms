@@ -5,10 +5,10 @@ import { firstValueFrom } from 'rxjs';
 import { DocumentsListComponent } from '../../components/documents-list/documents-list.component';
 import { DocumentDto } from '../../services/api.models';
 import { AuthService } from '../../services/auth.service';
+import { AppLinksService } from '../../services/app-links.service';
 import { ConfigApiService } from '../../services/config-api.service';
 import { DocumentsApiService } from '../../services/documents-api.service';
 import { LatestIndexQueryService } from '../../services/latest-index-query.service';
-import { RuntimeConfigService } from '../../services/runtime-config.service';
 
 @Component({
   selector: 'app-documents-page',
@@ -20,7 +20,7 @@ export class DocumentsPageComponent {
   private readonly configApi = inject(ConfigApiService);
   private readonly documentsApi = inject(DocumentsApiService);
   private readonly latestIndexQuery = inject(LatestIndexQueryService);
-  private readonly runtimeConfig = inject(RuntimeConfigService);
+  private readonly appLinks = inject(AppLinksService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
 
@@ -50,7 +50,11 @@ export class DocumentsPageComponent {
   }
 
   get publicReferenceUrl(): string {
-    return this.runtimeConfig.getGithubRepoConfig().publicBaseUrl.trim();
+    return this.appLinks.publicDocsPageUrl;
+  }
+
+  get legalPublicRepoUrl(): string {
+    return this.appLinks.legalPublicRepoUrl;
   }
 
   async onSoftDelete(ids: string[]): Promise<void> {
