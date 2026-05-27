@@ -8,20 +8,45 @@ import { LoginResponse, MeResponse } from './api.models';
 @Injectable({ providedIn: 'root' })
 export class AuthApiService {
   private readonly http = inject(HttpClient);
-  private readonly infraApiBaseUrl = 'https://mockup.cimafoundation.org/infrastruttura/api/';
+  private readonly currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+  private readonly infraApiBaseUrl = this.resolveInfraApiBaseUrl();
+  private readonly useSharedCookieSession = this.isSharedCookieHost(this.currentHost);
+
+  shouldUseSharedCookieSession(): boolean {
+    return this.useSharedCookieSession;
+  }
+
+  private isSharedCookieHost(host: string): boolean {
+    return host === 'mockup.cimafoundation.org'
+      || host.endsWith('.lvh.me')
+      || host.endsWith('.localtest.me');
+  }
+
+  private resolveInfraApiBaseUrl(): string {
+    if (typeof window === 'undefined') {
+      return 'https://mockup.cimafoundation.org/infrastruttura/api/';
+    }
+    const custom = window.localStorage.getItem('infra_api_base_url');
+    if (custom) {
+      return custom.endsWith('/') ? custom : `${custom}/`;
+    }
+    return 'https://mockup.cimafoundation.org/infrastruttura/api/';
+  }
 
   login(username: string, password: string): Observable<LoginResponse> {
     return this.http
       .post<{ success?: boolean; id?: number; username?: string; role?: string; message?: string }>(
         `${this.infraApiBaseUrl}auth.php`,
-        { username, password }
+        { username, password },
+        { withCredentials: this.useSharedCookieSession }
       )
       .pipe(
         map((response) => {
           if (response?.success) {
             return {
-              // auth.php does not return bearer token; keep a synthetic session token in FE.
-              token: `infra-${response.id || 0}-${response.username || username}`,
+              token: this.useSharedCookieSession
+                ? 'shared-cookie-session'
+                : `infra-${response.id || 0}-${response.username || username}`,
               user: {
                 id: response.id,
                 username: response.username || username,
@@ -42,6 +67,44 @@ export class AuthApiService {
             source: 'infrastruttura-api'
           })
         )
+      );
+  }
+
+  getSession(): Observable<LoginResponse> {
+    return this.http
+      .get<{ success?: boolean; id?: number; username?: string; role?: string }>(
+        `${this.infraApiBaseUrl}session.php`,
+        { withCredentials: this.useSharedCookieSession }
+      )
+      .pipe(
+        map((response) => {
+          if (response?.success && response.username) {
+            return {
+              token: 'shared-cookie-session',
+              user: {
+                id: response.id,
+                username: response.username,
+                role: response.role
+              },
+              source: 'infrastruttura-session'
+            } satisfies LoginResponse;
+          }
+          return { token: '', source: 'infrastruttura-session' } satisfies LoginResponse;
+        }),
+        catchError(() => of({ token: '', source: 'infrastruttura-session' } satisfies LoginResponse))
+      );
+  }
+
+  logoutSession(): Observable<{ success: boolean }> {
+    return this.http
+      .post<{ success?: boolean }>(
+        `${this.infraApiBaseUrl}logout.php`,
+        {},
+        { withCredentials: this.useSharedCookieSession }
+      )
+      .pipe(
+        map((response) => ({ success: Boolean(response?.success) })),
+        catchError(() => of({ success: false }))
       );
   }
 

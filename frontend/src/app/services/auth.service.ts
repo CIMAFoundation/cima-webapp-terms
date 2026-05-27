@@ -6,6 +6,8 @@ import { LoginResponse } from './api.models';
 export class AuthService {
   private static readonly TOKEN_KEY = 'webterms_token';
   private static readonly USER_KEY = 'webterms_user';
+  private readonly currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+  private readonly useSharedCookieSession = this.isSharedCookieHost(this.currentHost);
 
   getToken(): string {
     return localStorage.getItem(AuthService.TOKEN_KEY) || '';
@@ -16,7 +18,9 @@ export class AuthService {
   }
 
   setSession(token: string, user?: LoginResponse['user']): void {
-    this.setToken(token);
+    if (!this.useSharedCookieSession) {
+      this.setToken(token);
+    }
     if (user?.username) {
       localStorage.setItem(AuthService.USER_KEY, JSON.stringify(user));
     }
@@ -28,7 +32,21 @@ export class AuthService {
   }
 
   isAuthenticated(): boolean {
+    if (this.useSharedCookieSession) {
+      return Boolean(this.getUserName());
+    }
     return Boolean(this.getToken());
+  }
+
+  getUserName(): string {
+    try {
+      const raw = localStorage.getItem(AuthService.USER_KEY);
+      if (!raw) return '';
+      const parsed = JSON.parse(raw) as LoginResponse['user'];
+      return String(parsed?.username || '').trim();
+    } catch {
+      return '';
+    }
   }
 
   getUserRole(): string {
@@ -54,5 +72,11 @@ export class AuthService {
   buildAuthHeaders(): HttpHeaders | undefined {
     const token = this.getToken();
     return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
+  }
+
+  private isSharedCookieHost(host: string): boolean {
+    return host === 'mockup.cimafoundation.org'
+      || host.endsWith('.lvh.me')
+      || host.endsWith('.localtest.me');
   }
 }

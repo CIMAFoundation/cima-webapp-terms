@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -13,7 +13,7 @@ import { AuthService } from '../../services/auth.service';
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss'
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private readonly api = inject(AuthApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -21,6 +21,17 @@ export class LoginComponent {
   username = '';
   password = '';
   error = false;
+
+  async ngOnInit(): Promise<void> {
+    if (!this.api.shouldUseSharedCookieSession()) {
+      return;
+    }
+    const session = await firstValueFrom(this.api.getSession());
+    if (session?.token && session.user?.username) {
+      this.auth.setSession(session.token, session.user);
+      this.router.navigate(['/upload']);
+    }
+  }
 
   async login(): Promise<void> {
     this.error = false;
