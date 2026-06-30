@@ -1,6 +1,5 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
 import { AuthService } from './services/auth.service';
 import {NgTemplateOutlet} from "@angular/common";
 import { AuthApiService } from './services/auth-api.service';
@@ -43,6 +42,7 @@ export class App {
     this.router.navigate(['/documents']);
   }
 
+  // Bootstrap app auth from shared infrastruttura session before user hits protected pages.
   private async bootstrapSharedSession(): Promise<void> {
     if (!this.authApi.shouldUseSharedCookieSession()) {
       return;
@@ -50,7 +50,7 @@ export class App {
     if (this.auth.isAuthenticated()) {
       return;
     }
-    const session = await firstValueFrom(this.authApi.getSession());
+    const session = await this.authApi.resolveSharedSession();
     if (session?.token && session.user?.username) {
       this.auth.setSession(session.token, session.user);
     }

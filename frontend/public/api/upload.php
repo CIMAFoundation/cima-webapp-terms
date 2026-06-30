@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
+require_shared_infra_user();
 
 $body = json_input();
 $line = trim((string) ($body['line'] ?? ''));

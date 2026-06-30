@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { catchError } from 'rxjs/operators';
@@ -11,9 +12,21 @@ export class AuthApiService {
   private readonly currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
   private readonly infraApiBaseUrl = this.resolveInfraApiBaseUrl();
   private readonly useSharedCookieSession = this.isSharedCookieHost(this.currentHost);
+  private sharedSessionPromise: Promise<LoginResponse> | null = null;
 
   shouldUseSharedCookieSession(): boolean {
     return this.useSharedCookieSession;
+  }
+
+  // Resolve shared session once and reuse result while app bootstraps protected pages.
+  async resolveSharedSession(): Promise<LoginResponse> {
+    if (!this.useSharedCookieSession) {
+      return { token: '', source: 'shared-cookie-disabled' };
+    }
+    if (!this.sharedSessionPromise) {
+      this.sharedSessionPromise = firstValueFrom(this.getSession());
+    }
+    return this.sharedSessionPromise;
   }
 
   private isSharedCookieHost(host: string): boolean {

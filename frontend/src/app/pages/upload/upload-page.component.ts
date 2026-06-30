@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { UploadDropzoneComponent } from '../../components/upload/upload-dropzone.component';
@@ -8,6 +8,7 @@ import {
   UploadSnackbarMessage
 } from '../../components/upload/upload-snackbar.component';
 import { UploadQueueTableComponent } from '../../components/upload/upload-queue-table.component';
+import { AuthApiService } from '../../services/auth-api.service';
 import { AuthService } from '../../services/auth.service';
 import { UploadDocType } from '../../services/api.models';
 import { UploadFacadeService } from '../../services/upload-facade.service';
@@ -27,7 +28,8 @@ type UploadLanguage = 'it' | 'en' | 'fr' | 'es' | 'pt';
   providers: [UploadFacadeService],
   templateUrl: './upload-page.component.html'
 })
-export class UploadPageComponent {
+export class UploadPageComponent implements OnInit {
+  private readonly authApi = inject(AuthApiService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   readonly uploadFacade = inject(UploadFacadeService);
@@ -47,11 +49,21 @@ export class UploadPageComponent {
   snackbar: UploadSnackbarMessage | null = null;
   private snackbarTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  constructor() {
-    if (!this.auth.isAuthenticated()) {
-      this.router.navigate(['/login']);
+  // Wait shared session bootstrap before redirecting, else iframe flow hits false login screen.
+  async ngOnInit(): Promise<void> {
+    if (this.auth.isAuthenticated()) {
       return;
     }
+
+    if (this.authApi.shouldUseSharedCookieSession()) {
+      const session = await this.authApi.resolveSharedSession();
+      if (session?.token && session.user?.username) {
+        this.auth.setSession(session.token, session.user);
+        return;
+      }
+    }
+
+    this.router.navigate(['/login']);
   }
 
   get canPublish(): boolean {

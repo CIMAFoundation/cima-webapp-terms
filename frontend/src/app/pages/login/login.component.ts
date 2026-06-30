@@ -22,11 +22,12 @@ export class LoginComponent implements OnInit {
   password = '';
   error = false;
 
+  // Reuse shared infrastruttura session when webterms opens inside same site or iframe.
   async ngOnInit(): Promise<void> {
     if (!this.api.shouldUseSharedCookieSession()) {
       return;
     }
-    const session = await firstValueFrom(this.api.getSession());
+    const session = await this.api.resolveSharedSession();
     if (session?.token && session.user?.username) {
       this.auth.setSession(session.token, session.user);
       this.router.navigate(['/upload']);

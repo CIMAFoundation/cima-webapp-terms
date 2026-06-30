@@ -57,6 +57,63 @@ function out(int $status, array $payload): void
     exit;
 }
 
+// Mirror infrastruttura session cookie settings so webterms can read same PHP session.
+function start_shared_infra_session(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    $origin = strtolower((string) ($_SERVER['HTTP_ORIGIN'] ?? ''));
+    $cookieDomain = '.cimafoundation.org';
+
+    if (preg_match('/\.lvh\.me$/', $host) === 1 || strpos($origin, '.lvh.me') !== false) {
+        $cookieDomain = '.lvh.me';
+    } elseif (preg_match('/\.localtest\.me$/', $host) === 1 || strpos($origin, '.localtest.me') !== false) {
+        $cookieDomain = '.localtest.me';
+    }
+
+    $isHttpsRequest = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https')
+        || strpos($origin, 'https://') === 0
+        || strpos($host, '.cimafoundation.org') !== false;
+
+    if (PHP_VERSION_ID >= 70300) {
+        session_set_cookie_params([
+            'lifetime' => 60 * 60 * 8,
+            'path' => '/',
+            'domain' => $cookieDomain,
+            'secure' => $isHttpsRequest,
+            'httponly' => true,
+            'samesite' => 'None'
+        ]);
+    } else {
+        session_set_cookie_params(
+            60 * 60 * 8,
+            '/; samesite=None',
+            $cookieDomain,
+            $isHttpsRequest,
+            true
+        );
+    }
+
+    session_start();
+}
+
+// Read authenticated user from shared infrastruttura PHP session.
+function require_shared_infra_user(): array
+{
+    start_shared_infra_session();
+
+    $user = $_SESSION['user'] ?? null;
+    if (!is_array($user) || trim((string) ($user['username'] ?? '')) === '') {
+        out(401, ['error' => 'Authentication required']);
+    }
+
+    return $user;
+}
+
 function ensure_token(): string
 {
     $cfg = env_config();
