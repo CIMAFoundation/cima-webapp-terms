@@ -7,7 +7,8 @@ import { QueuedFile, UploadMetadataField } from '../../services/upload-facade.se
   selector: 'app-upload-queue-table',
   standalone: true,
   imports: [CommonModule],
-  templateUrl: './upload-queue-table.component.html'
+  templateUrl: './upload-queue-table.component.html',
+  styleUrl: './upload-queue-table.component.scss'
 })
 export class UploadQueueTableComponent {
   @Input() queuedFiles: QueuedFile[] = [];

@@ -49,4 +49,16 @@ export class AdminApiService {
       this.http.post<{ latestPath: string; legacyPath: string }>(`${this.baseUrl}/upload.php`, payload)
     );
   }
+
+  // Send the complete queue so the server creates one commit and updates the index once.
+  async uploadDocuments(items: Array<{
+    line: string;
+    lang: string;
+    docType: string;
+    date: string;
+    fileName: string;
+    contentBase64: string;
+  }>): Promise<void> {
+    await firstValueFrom(this.http.post<void>(`${this.baseUrl}/upload.php`, { items }));
+  }
 }

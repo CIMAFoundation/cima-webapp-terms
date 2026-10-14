@@ -2,7 +2,7 @@
   <p class="small text-secondary">Nessun file selezionato.</p>
 } @else {
   <div class="table-responsive">
-    <table class="table table-sm align-middle mb-0">
+    <table class="table table-sm align-middle mb-0 queue-table">
       <thead>
         <tr>
           <th style="width: 28%">File</th>
@@ -20,9 +20,9 @@
             [class.table-danger]="qf.status === 'error'"
             [class.table-warning]="qf.status === 'pending' && isMetadataInvalid(qf)"
           >
-            <td>
+            <td data-label="File" class="file-cell">
               <div class="d-flex align-items-center gap-2">
-                <span class="text-truncate" style="max-width: 200px">{{ qf.file.name }}</span>
+                <span class="file-name" [title]="qf.file.name">{{ qf.file.name }}</span>
                 @if (qf.status === 'uploading') {
                   <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
                 }
@@ -37,7 +37,7 @@
                 <small class="text-secondary">{{ qf.message }}</small>
               }
             </td>
-            <td>
+            <td data-label="Linea">
               <select
                 class="form-select form-select-sm"
                 [value]="qf.line"
@@ -50,7 +50,7 @@
                 }
               </select>
             </td>
-            <td>
+            <td data-label="Lingua">
               <select
                 class="form-select form-select-sm"
                 [value]="qf.lang"
@@ -63,7 +63,7 @@
                 }
               </select>
             </td>
-            <td>
+            <td data-label="Doc type">
               <select
                 class="form-select form-select-sm"
                 [value]="qf.docType"
@@ -76,7 +76,7 @@
                 }
               </select>
             </td>
-            <td>
+            <td data-label="Data">
               <input
                 type="date"
                 class="form-control form-control-sm"
@@ -85,7 +85,7 @@
                 (change)="onMetadataChange(qf.id, 'date', $any($event.target).value)"
               />
             </td>
-            <td>
+            <td data-label="Rimuovi">
               <button
                 class="btn btn-sm btn-outline-danger"
                 (click)="removeRequested.emit(qf.id)"
@@ -100,7 +100,7 @@
     </table>
   </div>
 
-  <div class="d-flex justify-content-between align-items-center mt-3">
+  <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mt-3">
     <small class="text-secondary">{{ queuedFiles.length }} file in coda (metadati per riga)</small>
     <button class="btn btn-primary" [disabled]="!canPublish" (click)="publishRequested.emit()">
       Salva file

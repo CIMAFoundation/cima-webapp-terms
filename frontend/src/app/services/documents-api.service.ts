@@ -45,6 +45,18 @@ export class DocumentsApiService {
     });
   }
 
+  // Publish all selected documents in one server request.
+  async publishDocuments(payloads: SimplePublishPayload[]): Promise<void> {
+    await this.adminApi.uploadDocuments(payloads.map((payload) => ({
+      line: payload.line,
+      lang: payload.lang,
+      docType: payload.docType,
+      date: payload.date,
+      fileName: payload.fileName,
+      contentBase64: payload.contentBase64
+    })));
+  }
+
   async softDeleteDocument(payload: DeletePayload): Promise<void> {
     return this.adminApi.softDeleteDocument({
       platform: payload.platform,
