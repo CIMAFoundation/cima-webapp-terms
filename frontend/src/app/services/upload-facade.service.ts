@@ -86,25 +86,22 @@ export class UploadFacadeService {
   }
 
   canPublish(): boolean {
+    const pending = this.queuedFiles.filter((f) => f.status !== 'done');
     return (
       !this.queuedFiles.some((f) => f.status === 'uploading') &&
-      this.queuedFiles.every((f) => Boolean(f.line && f.lang && f.docType && f.date)) &&
-      this.queuedFiles.length > 0
+      pending.every((f) => Boolean(f.line && f.lang && f.docType && f.date)) &&
+      pending.length > 0
     );
   }
 
   async uploadAll(): Promise<UploadBatchResult> {
-    this.queuedFiles.forEach((f) => {
+    const pending = this.queuedFiles.filter((f) => f.status !== 'done');
+    pending.forEach((f) => {
       f.status = 'uploading';
       f.message = undefined;
     });
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const queuedFile of this.queuedFiles) {
-      try {
-        const payload: SimplePublishPayload = {
+    try {
+      const payloads: SimplePublishPayload[] = await Promise.all(pending.map(async (queuedFile) => ({
           line: queuedFile.line,
           lang: queuedFile.lang as UploadMetadata['lang'],
           docType: queuedFile.docType as UploadMetadata['docType'],
@@ -115,22 +112,22 @@ export class UploadFacadeService {
           repoOwner: '',
           repoName: '',
           branch: ''
-        };
-
-        await this.documentsApi.publishSimpleDocument(payload);
+      })));
+      await this.documentsApi.publishDocuments(payloads);
+      pending.forEach((queuedFile) => {
         queuedFile.status = 'done';
         queuedFile.message = 'Salvato in latest + legacy';
-        successCount += 1;
-      } catch (error: any) {
+      });
+      return { successCount: pending.length, errorCount: 0 };
+    } catch (error: any) {
+      pending.forEach((queuedFile) => {
         queuedFile.status = 'error';
         const backendError = String(error?.error?.message || error?.error || '').trim();
         const directError = String(error?.message || '').trim();
         queuedFile.message = backendError || directError || `Errore (status ${error?.status || '?'})`;
-        errorCount += 1;
-      }
+      });
+      return { successCount: 0, errorCount: pending.length };
     }
-
-    return { successCount, errorCount };
   }
 
   private createFileEntry(file: File, defaults: UploadDefaults): QueuedFile {
