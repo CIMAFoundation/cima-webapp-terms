@@ -10,7 +10,7 @@ Backoffice Angular per upload, gestione documenti, vista ufficiale.
 ## Avvio locale
 
 ```bash
-cd /Users/deda/WebstormProjects/cima-webapp-terms/frontend
+cd /cima-webapp-terms/frontend
 export NVM_DIR="$HOME/.nvm"
 . "$NVM_DIR/nvm.sh"
 nvm use
@@ -26,7 +26,7 @@ URL: `http://localhost:4200`
 Avvio API locale:
 
 ```bash
-cd /Users/deda/WebstormProjects/cima-webapp-terms
+cd /cima-webapp-terms
 cp frontend/public/webterms.env.php.example frontend/public/webterms.env.php
 # compila frontend/public/webterms.env.php
 php -S 127.0.0.1:8787 -t frontend/public
@@ -35,7 +35,7 @@ php -S 127.0.0.1:8787 -t frontend/public
 ## Build
 
 ```bash
-cd /Users/deda/WebstormProjects/cima-webapp-terms/frontend
+cd /cima-webapp-terms/frontend
 npm run build
 ```
 
