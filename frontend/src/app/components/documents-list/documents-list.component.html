@@ -30,12 +30,13 @@
             <div class="fw-semibold">{{ doc.downloadFileName || doc.originalFileName }}</div>
             <div class="small text-secondary">{{ doc.originalFileName }}</div>
             @if (isDeleted(doc)) {
-              <div class="small text-danger">Eliminato il {{ formatDeletedDate(doc.deletedAt) }}</div>
+              <div class="small text-danger">Ritirato il {{ formatDeletedDate(doc.deletedAt) }}</div>
             }
           </td>
           <td>{{ doc.line || '-' }} / {{ doc.docType }} / {{ doc.lang }}</td>
           <td>{{ formatEffectiveDate(doc.effectiveDate) }}</td>
           <td>
+            @if (!isDeleted(doc)) {
             <a
               class="btn btn-sm btn-outline-primary"
               [href]="doc.downloadUrl"
@@ -43,6 +44,9 @@
             >
               Scarica
             </a>
+            } @else {
+              <span class="text-secondary">Non pubblicato</span>
+            }
           </td>
         </tr>
       }
@@ -63,7 +67,7 @@
           [disabled]="selectedIds.size === 0"
           (click)="onDeleteSelected()"
         >
-          Sposta nel cestino
+          Ritira dalla pubblicazione
         </button>
       }
       @if (canHardDelete) {

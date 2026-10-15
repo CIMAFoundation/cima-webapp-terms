@@ -56,39 +56,31 @@
 
         </div>
 
+      @if (canDelete) {
+        <div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="Stato pubblicazione">
+          <button class="btn" [class.btn-primary]="!showDeleted" (click)="showDeleted = false">Pubblicati</button>
+          <button class="btn" [class.btn-primary]="showDeleted" (click)="showDeleted = true">Ritirati ({{ deletedDocuments.length }})</button>
+          <button class="btn btn-outline-secondary" [disabled]="loading" (click)="loadDocuments()">Aggiorna lista</button>
+          <a class="btn btn-link" [href]="legalPublicRepoUrl + '/actions/workflows/publish-pages.yml'" target="_blank" rel="noopener">Stato CI</a>
+        </div>
+      }
+      @if (!showDeleted || !canDelete) {
       <app-documents-list 
         [documents]="documents" 
-        [canDelete]="canDelete"
-        [canHardDelete]="canDelete"
+        [canDelete]="canDelete && !loading"
+        [canHardDelete]="false"
         (deleteRequested)="onSoftDelete($event)" />
 
+      }
       @if (statusMessage) {
         <div class="alert mt-3" [class.alert-success]="statusMessage.startsWith('✓')" [class.alert-danger]="statusMessage.startsWith('Errore')">
           {{ statusMessage }}
         </div>
       }
 
-      @if (canDelete && deletedDocuments.length > 0) {
-        <hr class="my-4" />
-        
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <h3 class="h5 mb-0">
-            Documenti eliminati
-            <span class="badge bg-secondary ms-2">{{ deletedDocuments.length }}</span>
-          </h3>
-          <button class="btn btn-sm" [class.btn-outline-secondary]="!showDeleted" [class.btn-secondary]="showDeleted" (click)="toggleShowDeleted()">
-            {{ showDeleted ? 'Nascondi' : 'Mostra' }}
-          </button>
-        </div>
-
-        @if (showDeleted) {
-          <app-documents-list 
-            [documents]="deletedDocuments"
-            [canDelete]="true"
-            [canHardDelete]="true"
-            (restoreRequested)="onRestore($event)"
-            (hardDeleteRequested)="onHardDelete($event)" />
-        }
+      @if (canDelete && showDeleted) {
+        <app-documents-list [documents]="deletedDocuments" [canDelete]="!loading"
+          [canHardDelete]="false" (restoreRequested)="onRestore($event)" />
       }
     </div>
   </section>

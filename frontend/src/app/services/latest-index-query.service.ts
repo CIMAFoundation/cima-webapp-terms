@@ -24,7 +24,7 @@ export class LatestIndexQueryService {
   private readonly runtimeConfig = inject(RuntimeConfigService);
 
   getDocuments(filters: DocumentFilters): Observable<DocumentsResponse> {
-    return this.getPublicLatest().pipe(
+    return this.getPublicLatest(Boolean(filters.includeDeleted)).pipe(
       map((response) => {
         const documents = this.flattenLatest(response.latest || {});
         return {
@@ -46,7 +46,13 @@ export class LatestIndexQueryService {
     );
   }
 
-  getPublicLatest(): Observable<PublicLatestResponse> {
+  /** Uses the protected repository index for withdrawn documents; Pages exposes active rows only. */
+  getPublicLatest(includeDeleted = false): Observable<PublicLatestResponse> {
+    if (includeDeleted) {
+      return this.http.get<{ rows: Parameters<LatestIndexQueryService['latestIndexToManifest']>[0] }>('api/documents.php').pipe(
+        map((payload) => this.latestIndexToManifest(payload.rows || []))
+      );
+    }
     const latestIndexUrl = this.runtimeConfig.getLatestIndexUrl();
     const cached = this.runtimeConfig.getCachedLatestIndex();
     if (cached) {

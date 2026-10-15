@@ -85,6 +85,11 @@ export class DocumentsApiService {
     });
   }
 
+  /** Requests one CI run for the complete restore selection. */
+  async restoreDocuments(payloads: RestorePayload[]): Promise<void> {
+    return this.adminApi.restoreBatch(payloads);
+  }
+
   async hardDeleteDocument(payload: DeletePayload): Promise<void> {
     return this.adminApi.hardDeleteDocument({
       platform: payload.platform,

@@ -1,9 +1,10 @@
-import { HttpHeaders } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
 import { LoginResponse } from './api.models';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private readonly http = inject(HttpClient);
   private static readonly TOKEN_KEY = 'webterms_token';
   private static readonly USER_KEY = 'webterms_user';
 
@@ -22,7 +23,11 @@ export class AuthService {
     }
   }
 
+  /** Ends the server session as well as clearing the local login state. */
   clearToken(): void {
+    this.http.post('api/logout.php', {}, {
+      headers: { 'X-Webterms-CSRF': this.getToken() }
+    }).subscribe({ error: () => undefined });
     localStorage.removeItem(AuthService.TOKEN_KEY);
     localStorage.removeItem(AuthService.USER_KEY);
   }
