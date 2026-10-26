@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -21,7 +22,9 @@ export class LoginComponent {
   username = '';
   password = '';
   error = false;
+  errorMessage = '';
 
+  /** Creates the local session and reports authentication service failures separately. */
   async login(): Promise<void> {
     this.error = false;
     try {
@@ -32,12 +35,17 @@ export class LoginComponent {
       }
       this.auth.setSession(response.token, response.user);
       this.router.navigate(['/upload']);
-    } catch {
-      this.showError();
+    } catch (error: unknown) {
+      const message = error instanceof HttpErrorResponse && typeof error.error?.error === 'string'
+        ? error.error.error
+        : 'Impossibile contattare il servizio di autenticazione.';
+      this.showError(message);
     }
   }
 
-  private showError(): void {
+  /** Displays the login failure returned by the API. */
+  private showError(message = 'Username o password non corretti.'): void {
+    this.errorMessage = message;
     this.error = true;
     setTimeout(() => {
       this.error = false;

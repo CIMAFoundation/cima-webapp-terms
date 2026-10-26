@@ -25,7 +25,7 @@ Monorepo per gestione documenti legali e pubblicazione su GitHub Pages.
 - PHP con estensione cURL per le API locali.
 - GitHub token con permesso Contents write su `CIMAFoundation/cima-legal-public-docs`;
   per ritiro/ripristino tramite workflow serve anche Actions write.
-- Servizio di autenticazione infrastruttura online e account con ruolo admin/dev.
+- Servizio di autenticazione infrastruttura locale oppure online e account admin/dev.
 
 ## Avvio locale completo (FE + BE PHP)
 
@@ -84,10 +84,29 @@ La distribuzione attuale usa GitHub Pages. La pipeline DOCX del repository app
 
 ### Limiti in caso di guasto
 
-Il login PHP locale chiama ancora
-`https://mockup.cimafoundation.org/infrastruttura/api/auth.php`.
-Se cade l'intero host mockup, un nuovo login locale non funziona: questa procedura
-copre il guasto del solo WebTerms, non l'indisponibilità del servizio identità.
+Il login PHP usa `INFRA_AUTH_URL` da `frontend/public/webterms.env.php`.
+Il default è `https://mockup.cimafoundation.org/infrastruttura/api/auth.php`.
+Per lavorare anche quando il servizio remoto non risponde, avvia le API infrastruttura
+in un terzo terminale, dalla cartella che contiene il database SQLite:
+
+```bash
+cd /Users/deda/WebstormProjects/infrastruttura-nf/api
+php -S 127.0.0.1:8788 -t .
+```
+
+In `frontend/public/webterms.env.php` aggiungi:
+
+```php
+'INFRA_AUTH_URL' => 'http://127.0.0.1:8788/auth.php',
+```
+
+Serve l'estensione PHP SQLite3 e un database locale `database.sqlite` con gli utenti.
+Usa le credenziali del database locale: non sono necessariamente allineate a quelle
+online. Non serve avviare il frontend infrastruttura. L'API WebTerms legge la
+configurazione a ogni richiesta. Per tornare al servizio remoto, rimuovi l'override.
+In caso di guasto del servizio identità il login restituisce 503; le credenziali
+rifiutate restituiscono 401.
+
 Anche l'elenco portali dipende da infrastruttura e usa un fallback limitato su errore:
 verifica che la destinazione desiderata sia presente prima di pubblicare.
 Servono inoltre rete verso GitHub, token valido e Actions/Pages operativi.

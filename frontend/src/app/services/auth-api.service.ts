@@ -11,9 +11,7 @@ export class AuthApiService {
 
   /** Creates a server session after the identity service validates credentials. */
   login(username: string, password: string): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>('api/login.php', { username, password }).pipe(
-      catchError(() => of({ token: '', source: 'infrastruttura-api' }))
-    );
+    return this.http.post<LoginResponse>('api/login.php', { username, password });
   }
 
   getMe(): Observable<MeResponse> {

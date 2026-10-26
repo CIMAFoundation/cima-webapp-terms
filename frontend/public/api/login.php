@@ -8,16 +8,23 @@ $username = (string) ($body['username'] ?? '');
 $password = (string) ($body['password'] ?? '');
 if ($username === '' || $password === '') out(400, ['error' => 'Credenziali mancanti']);
 // Validate credentials with the existing identity service; never trust a client-supplied role.
-$ch = curl_init('https://mockup.cimafoundation.org/infrastruttura/api/auth.php');
+$ch = curl_init((string) env_config()['INFRA_AUTH_URL']);
 curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => ['Content-Type: application/json'], CURLOPT_TIMEOUT => 20,
     CURLOPT_POSTFIELDS => json_encode(['username' => $username, 'password' => $password])]);
 $raw = curl_exec($ch);
 $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
 $user = is_string($raw) ? json_decode($raw, true) : null;
-if ($status !== 200 || !is_array($user) || ($user['success'] ?? false) !== true) {
-    out(401, ['error' => 'Autenticazione fallita']);
+if ($raw === false || $status !== 200 || !is_array($user)
+    || !isset($user['success']) || !is_bool($user['success'])) {
+    out(503, ['error' => 'Servizio di autenticazione non disponibile. Riprova più tardi.']);
+}
+if ($user['success'] !== true) {
+    out(401, ['error' => 'Username o password non corretti.']);
+}
+if (!isset($user['username'], $user['role']) || !is_string($user['username'])
+    || !is_string($user['role'])) {
+    out(503, ['error' => 'Risposta del servizio di autenticazione non valida.']);
 }
 webterms_session();
 session_regenerate_id(true);

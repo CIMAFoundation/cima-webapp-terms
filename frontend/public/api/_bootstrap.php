@@ -19,6 +19,7 @@ function env_config(): array
     }
 
     $defaults = [
+        'INFRA_AUTH_URL' => 'https://mockup.cimafoundation.org/infrastruttura/api/auth.php',
         'GITHUB_OWNER' => 'CIMAFoundation',
         'GITHUB_REPO' => 'cima-legal-public-docs',
         'GITHUB_BRANCH' => 'main',

@@ -6,7 +6,8 @@ Backoffice Angular per upload, gestione documenti, vista ufficiale.
 
 - Node LTS 22 (`.nvmrc` root repo).
 - PHP con cURL, API avviata su `127.0.0.1:8787` e token GitHub configurato.
-- Servizio identità infrastruttura raggiungibile per il login locale.
+- Servizio identità infrastruttura locale o remoto raggiungibile per il login.
+  Imposta `INFRA_AUTH_URL` nel file PHP riservato; vedi il README principale.
 
 ## Avvio locale
 
@@ -96,7 +97,9 @@ Senza API attiva: upload/delete/restore/hard-delete non funzionano.
 
 ### Errore 401/403 su API PHP
 
-- Se fallisce il login, verifica credenziali e raggiungibilità del servizio identità remoto.
+- Se fallisce il login, verifica `INFRA_AUTH_URL` e raggiungibilità del servizio identità.
+  Con API locali usa le credenziali del database locale: 401 indica credenziali rifiutate,
+  503 indica servizio indisponibile o risposta non valida.
 - Per operazioni protette, accedi nuovamente: sessione scaduta, CSRF o ruolo diverso
   da admin/dev possono causare 401/403.
 - Se l'errore proviene da GitHub, verifica validità e permessi di `GITHUB_ADMIN_TOKEN`
