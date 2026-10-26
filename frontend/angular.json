@@ -78,6 +78,13 @@
               "outputHashing": "all"
             },
             "development": {
+              "assets": [
+                {
+                  "glob": "**/*",
+                  "input": "public",
+                  "ignore": ["webterms.env.php", "api/**"]
+                }
+              ],
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true

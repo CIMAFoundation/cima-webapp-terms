@@ -38,6 +38,9 @@ La procedura completa di pubblicazione, i controlli Actions/Pages e i limiti in 
 di guasto sono nel [README principale](../README.md#pubblicare-quando-il-fe-remoto-non-è-raggiungibile).
 Accedi nuovamente da localhost; la sessione del sito remoto non è condivisa.
 `webterms.env.php` è escluso dagli asset Angular e resta leggibile da PHP sul disco.
+In sviluppo anche `api/**` è escluso dagli asset: le richieste devono passare dal
+proxy a PHP, altrimenti Angular serve il sorgente invece del JSON. Le API restano
+incluse nella build di produzione. Dopo modifiche alla configurazione, riavvia `npm start`.
 
 ## Build
 
