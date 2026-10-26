@@ -5,7 +5,9 @@ Backoffice Angular per upload, gestione documenti, vista ufficiale.
 ## Requisiti
 
 - Node LTS 22 (`.nvmrc` root repo).
-- API PHP avviata su `127.0.0.1:8787` per upload/delete/restore/hard-delete.
+- PHP con cURL, API avviata su `127.0.0.1:8787` e token GitHub configurato.
+- Servizio identità infrastruttura locale o remoto raggiungibile per il login.
+  Imposta `INFRA_AUTH_URL` nel file PHP riservato; vedi il README principale.
 
 ## Avvio locale
 
@@ -27,10 +29,19 @@ Avvio API locale:
 
 ```bash
 cd /cima-webapp-terms
-cp frontend/public/webterms.env.php.example frontend/public/webterms.env.php
+# Solo se non esiste già:
+[ -f frontend/public/webterms.env.php ] || cp frontend/public/webterms.env.php.example frontend/public/webterms.env.php
 # compila frontend/public/webterms.env.php
 php -S 127.0.0.1:8787 -t frontend/public
 ```
+
+La procedura completa di pubblicazione, i controlli Actions/Pages e i limiti in caso
+di guasto sono nel [README principale](../README.md#pubblicare-quando-il-fe-remoto-non-è-raggiungibile).
+Accedi nuovamente da localhost; la sessione del sito remoto non è condivisa.
+`webterms.env.php` è escluso dagli asset Angular e resta leggibile da PHP sul disco.
+In sviluppo anche `api/**` è escluso dagli asset: le richieste devono passare dal
+proxy a PHP, altrimenti Angular serve il sorgente invece del JSON. Le API restano
+incluse nella build di produzione. Dopo modifiche alla configurazione, riavvia `npm start`.
 
 ## Build
 
@@ -47,6 +58,11 @@ Da pagina Upload:
 - scrive `latest/[line]/[lang]/[doc-type].pdf`
 - scrive `legacy/[line]/[lang]/[doc-type]_[date].pdf`
 - aggiorna `assets/latest-index.json` (upsert entry stessa `line/lang/docType`)
+
+L’intera coda viene inviata alle API in un batch e salvata in un unico commit
+sul repository remoto. Il push su `main` attiva **Publish Pages** automaticamente.
+Non serve un push dal checkout locale; attendi la riuscita del deploy prima di
+considerare i documenti pubblicati.
 
 ## Dati mostrati in FE
 
@@ -77,8 +93,16 @@ Senza API attiva: upload/delete/restore/hard-delete non funzionano.
 1. Controlla `assets/latest-index.json` live.
 2. Hard refresh browser (`Cmd+Shift+R`).
 3. Pulisci cache `webterms_cached_latest_index*`.
-4. Verifica deploy FE aggiornato.
+4. Verifica che **Publish Pages** sia riuscita per il commit di upload.
 
 ### Errore 401/403 su API PHP
 
-Controlla `GITHUB_ADMIN_TOKEN` in `frontend/public/webterms.env.php`.
+- Se fallisce il login, verifica `INFRA_AUTH_URL` e raggiungibilità del servizio identità.
+  Con API locali usa le credenziali del database locale: 401 indica credenziali rifiutate,
+  503 indica servizio indisponibile o risposta non valida.
+- Per operazioni protette, accedi nuovamente: sessione scaduta, CSRF o ruolo diverso
+  da admin/dev possono causare 401/403.
+- Se l'errore proviene da GitHub, verifica validità e permessi di `GITHUB_ADMIN_TOKEN`
+  in `frontend/public/webterms.env.php`: Contents write per upload, anche Actions write
+  per ritiro/ripristino tramite workflow.
+- `tokenConfigured: true` nell'health check indica solo che il valore è presente.

@@ -18,6 +18,6 @@
     </div>
     <button (click)="login()" type="button" class="btn btn-primary mt-3 w-100">Submit</button>
 
-    <p *ngIf="error" class="my-3 text-danger">Username or password incorrect</p>
+    <p *ngIf="error" class="my-3 text-danger">{{ errorMessage }}</p>
   </div>
 </div>
