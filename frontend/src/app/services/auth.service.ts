@@ -28,6 +28,11 @@ export class AuthService {
     this.http.post('api/logout.php', {}, {
       headers: { 'X-Webterms-CSRF': this.getToken() }
     }).subscribe({ error: () => undefined });
+    this.expireSession();
+  }
+
+  /** Clears stale browser credentials when the server rejects an expired session. */
+  expireSession(): void {
     localStorage.removeItem(AuthService.TOKEN_KEY);
     localStorage.removeItem(AuthService.USER_KEY);
   }

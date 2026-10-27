@@ -103,12 +103,10 @@ function github_request(string $method, string $path, ?array $body = null): arra
     $raw = curl_exec($ch);
     if ($raw === false) {
         $err = curl_error($ch);
-        curl_close($ch);
         out(500, ['error' => 'GitHub request failed: ' . $err]);
     }
 
     $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
     $json = json_decode((string) $raw, true);
     return [
@@ -138,12 +136,10 @@ function github_repo_request(string $method, string $apiPath, ?array $body = nul
     $raw = curl_exec($ch);
     if ($raw === false) {
         $err = curl_error($ch);
-        curl_close($ch);
         out(500, ['error' => 'GitHub request failed: ' . $err]);
     }
 
     $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
     $json = json_decode((string) $raw, true);
     return [
@@ -325,6 +321,7 @@ function encoded_latest_index(array $rows): string
     return base64_encode(json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
 }
 
+/** Verifies Git blob contents before publishing all files in one commit. */
 function commit_files_atomic(array $updates, string $message): void
 {
     $cfg = env_config();
@@ -358,8 +355,10 @@ function commit_files_atomic(array $updates, string $message): void
             out(500, ['error' => 'Create blob failed (' . $blob['status'] . '): ' . $blob['raw']]);
         }
         $blobSha = (string) (($blob['json']['sha'] ?? ''));
-        if ($blobSha === '') {
-            out(500, ['error' => 'Invalid blob payload']);
+        $content = base64_decode((string) $contentBase64, true);
+        if ($content === false
+            || $blobSha !== sha1('blob ' . strlen($content) . "\0" . $content)) {
+            out(502, ['error' => 'GitHub blob verification failed: ' . $filePath]);
         }
 
         $treeItems[] = [

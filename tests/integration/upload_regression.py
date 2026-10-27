@@ -75,7 +75,7 @@ class UploadRegression(unittest.TestCase):
         self.public = Path(self.temp.name)
         api = self.public / 'api'
         api.mkdir()
-        for name in ('_bootstrap.php', 'upload.php'):
+        for name in ('_bootstrap.php', '_session.php', 'upload.php'):
             shutil.copy(ROOT / 'frontend/public/api' / name, api / name)
         self.github = ThreadingHTTPServer(('127.0.0.1', 0), GithubFixture)
         self.github.blobs = {}
@@ -94,12 +94,14 @@ class UploadRegression(unittest.TestCase):
         # PHP chooses a free port; its startup log provides the actual address.
         self.php = subprocess.Popen(
             ['php', '-d', 'display_errors=1', '-d', 'error_reporting=-1',
+             '-d', f'session.save_path={self.public}',
              '-S', '127.0.0.1:0', '-t', str(self.public)],
             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         self.addCleanup(self.stop_php)
         line = self.php.stderr.readline()
         self.base = line.split('(http://', 1)[1].split(')', 1)[0]
         self.base = 'http://' + self.base
+        self.write_session()
 
     def stop_php(self):
         """Stop the isolated PHP server and release its log pipe."""
@@ -107,11 +109,24 @@ class UploadRegression(unittest.TestCase):
         self.php.wait(timeout=5)
         self.php.stderr.close()
 
-    def upload(self, items):
+    def write_session(self, role='admin', expires=4102444800):
+        """Create an actual PHP session shared with the isolated API server."""
+        code = (f"require '{self.public}/api/_session.php';"
+                "session_id('fixture-session');webterms_session();"
+                f"$_SESSION=['role'=>'{role}','expires'=>{expires},'csrf'=>'fixture-csrf'];"
+                "session_write_close();")
+        subprocess.run(['php', '-d', f'session.save_path={self.public}', '-r', code],
+                       check=True, capture_output=True)
+
+    def upload(self, items, headers=None, single=False, method='POST'):
         """Post a batch and require a clean JSON response under PHP E_ALL."""
         request = urllib.request.Request(self.base + '/api/upload.php',
-                                        data=json.dumps({'items': items}).encode(),
-                                        headers={'Content-Type': 'application/json'})
+                                        data=json.dumps(items[0] if single else {'items': items}).encode(),
+                                        method=method,
+                                        headers={'Content-Type': 'application/json',
+                                                 'Cookie': 'webterms_session=fixture-session',
+                                                 'X-Webterms-CSRF': 'fixture-csrf',
+                                                 **(headers or {})})
         try:
             response = urllib.request.urlopen(request, timeout=10)
         except urllib.error.HTTPError as error:
@@ -152,6 +167,56 @@ class UploadRegression(unittest.TestCase):
         self.assertEqual(status, 502)
         self.assertIn('verification failed', body['error'])
         self.assertEqual(self.github.updates, 0)
+
+    def test_single_upload_preserves_legacy_response(self):
+        """Keep the original single-upload paths while adding a verified receipt."""
+        item = self.item()
+        status, body = self.upload([item], single=True)
+        self.assertEqual(status, 200)
+        self.assertEqual(body['latestPath'], 'latest/demo/it/terms-of-use.pdf')
+        self.assertEqual(body['legacyPath'], 'legacy/demo/it/terms-of-use_2026-10-26.pdf')
+        self.assertEqual(body['documents'][0]['sha256'],
+                         hashlib.sha256(base64.b64decode(item['contentBase64'])).hexdigest())
+
+    def test_get_never_writes(self):
+        """Reject non-POST requests even when the session is valid."""
+        status, _body = self.upload([self.item()], method='GET')
+        self.assertEqual(status, 405)
+        self.assertEqual(self.github.blobs, {})
+
+    def test_anonymous_never_writes(self):
+        """Reject an unauthenticated upload before contacting GitHub."""
+        status, _body = self.upload([self.item()], {'Cookie': ''})
+        self.assertEqual(status, 401)
+        self.assertEqual(self.github.blobs, {})
+
+    def test_expired_never_writes(self):
+        """Reject a session past its server expiry."""
+        self.write_session(expires=1)
+        status, _body = self.upload([self.item()])
+        self.assertEqual(status, 401)
+        self.assertEqual(self.github.blobs, {})
+
+    def test_viewer_never_writes(self):
+        """Reject a valid session without a document manager role."""
+        self.write_session(role='viewer')
+        status, _body = self.upload([self.item()])
+        self.assertEqual(status, 403)
+        self.assertEqual(self.github.blobs, {})
+
+    def test_forged_csrf_never_writes(self):
+        """Reject a mutation with a forged CSRF token."""
+        status, _body = self.upload([self.item()], {'X-Webterms-CSRF': 'forged'})
+        self.assertEqual(status, 403)
+        self.assertEqual(self.github.blobs, {})
+
+    def test_dev_can_publish(self):
+        """Allow dev as well as admin to publish a verified upload."""
+        self.write_session(role='dev')
+        status, body = self.upload([self.item()])
+        self.assertEqual(status, 200)
+        self.assertEqual(body['count'], 1)
+        self.assertEqual(self.github.updates, 1)
 
     def test_duplicate_destination_never_writes(self):
         """Reject duplicate destinations before uploading any blob."""

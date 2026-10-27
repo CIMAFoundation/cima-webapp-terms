@@ -58,3 +58,30 @@ lo stesso URL deve tornare 200. Le copie già scaricate dai client restano dispo
 Il progetto non definisce uno script `lint`. I test PHP usano fixture e non inviano
 richieste a GitHub. I test Node provano esclusione dall'artefatto, conservazione dei
 PDF nel repository, ripristino e rigenerazione dell'indice senza ripubblicazione.
+
+## Integrità degli upload e protezione dai merge obsoleti
+
+Gli upload richiedono sessione `admin`/`dev` e CSRF. Il server verifica lo SHA Git
+di ogni blob prima del commit e restituisce percorsi e SHA-256 dei PDF. Il frontend
+confronta la ricevuta con i file inviati e invalida la cache anche in caso di errore.
+Un upload confermato indica il salvataggio nel repository; la pubblicazione Pages
+rimane affidata alla CI. Un `401` delle API protette elimina la sessione locale e
+riporta al login, senza ripetere automaticamente la richiesta.
+
+Pages verifica `generatedAt` rispetto alla cronologia Git completa dell'indice,
+compresi i genitori dei merge. Un indice precedente blocca il deploy e lascia
+online l'ultima pubblicazione riuscita. Il controllo vale anche per `refresh`.
+In caso di blocco, riconciliare le righe con l'ultimo indice corretto in `main`,
+preservando date e stati di pubblicazione. Non cambiare solo il timestamp per
+aggirare il controllo. Il controllo temporale non rileva metadati obsoleti ai quali
+sia stato assegnato un nuovo timestamp.
+
+Verifiche aggiuntive:
+
+- `python3 tests/integration/upload_regression.py` (PHP 8.5, server locali simulati).
+- `node tests/integration/upload_receipts.cjs`.
+- `node tests/integration/session_expiry.cjs`.
+- Nel repository pubblico: `npm test` e `node scripts/check-index-history.mjs`.
+
+Per attivare le correzioni, integrare il branch del repository pubblico in `main`
+e distribuire insieme frontend e API PHP aggiornati di Webterms.

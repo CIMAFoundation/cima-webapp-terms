@@ -26,6 +26,7 @@ const http = {
     assert.equal(options.headers['X-Webterms-CSRF'], 'fixture-csrf');
     assert.equal(body.items.length, 1);
     posts++;
+    if (receipt instanceof Error) return Promise.reject(receipt);
     return receipt;
   }
 };
@@ -51,6 +52,7 @@ const bytes = Buffer.from('%PDF-1.4\nnew-file');
 const items = [{ line: 'demo', lang: 'it', docType: 'terms-of-use',
   date: '2026-10-26', fileName: 'new.pdf', contentBase64: bytes.toString('base64') }];
 const doc = { latestPath: 'latest/demo/it/terms-of-use.pdf',
+  legacyPath: 'legacy/demo/it/terms-of-use_2026-10-26.pdf',
   sha256: createHash('sha256').update(bytes).digest('hex') };
 
 /** Reject mismatched or incomplete receipts instead of marking the upload successful. */
@@ -61,14 +63,22 @@ async function verifyReceipts() {
   for (const invalid of [
     { count: 1, documents: [{ ...doc, sha256: 'wrong' }] },
     { count: 1, documents: [{ ...doc, latestPath: 'latest/wrong.pdf' }] },
+    { count: 1, documents: [{ ...doc, legacyPath: 'legacy/wrong.pdf' }] },
     { count: 0, documents: [] },
     { count: 1 }
   ]) {
     receipt = invalid;
     await assert.rejects(() => service.uploadDocuments(items), /Controlla il repository/);
   }
-  assert.equal(posts, 5);
-  assert.equal(cacheClears, 5);
-  console.log('OK: valid receipt, wrong hash, wrong path, missing documents, cache invalidation.');
+  assert.equal(posts, 6);
+  assert.equal(cacheClears, 6);
+  receipt = { count: 1, documents: [doc] };
+  const single = await service.uploadDocument(items[0]);
+  assert.equal(single.latestPath, doc.latestPath);
+  receipt = new Error('HTTP response lost');
+  await assert.rejects(() => service.uploadDocuments(items), /HTTP response lost/);
+  assert.equal(posts, 8);
+  assert.equal(cacheClears, 8);
+  console.log('OK: single/batch receipts, wrong hash/path, missing documents, cache invalidation after HTTP failure.');
 }
 verifyReceipts().catch((error) => { console.error(error); process.exitCode = 1; });

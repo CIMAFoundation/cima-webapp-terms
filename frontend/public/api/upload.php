@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/_bootstrap.php';
+require __DIR__ . '/_session.php';
+require_document_manager();
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') out(405, ['error' => 'Method not allowed']);
 
 $body = json_input();
 $items = $body['items'] ?? [$body];
@@ -48,6 +51,8 @@ foreach ($items as $item) {
         'lang' => $lang,
         'docType' => $docType,
         'effectiveDate' => $date,
+        'originalFileName' => $fileName,
+        'sha256' => hash('sha256', base64_decode($contentBase64, true)),
         'publicUrl' => rtrim((string) $cfg['PUBLIC_BASE_URL'], '/') . '/' . $latestPath,
         'downloadFileName' => $docType . '.pdf',
         'latestPath' => $latestPath,
@@ -70,6 +75,6 @@ $updates[(string) $cfg['LATEST_INDEX_PATH']] = encoded_latest_index($rows);
 commit_files_atomic($updates, 'docs: upload ' . count($uploaded) . ' documents + latest-index');
 
 if (count($uploaded) === 1 && !isset($body['items'])) {
-    out(200, ['latestPath' => $uploaded[0]['latestPath'], 'legacyPath' => $uploaded[0]['legacyPath']]);
+    out(200, array_merge($uploaded[0], ['count' => 1, 'documents' => $uploaded]));
 }
-out(200, ['count' => count($uploaded)]);
+out(200, ['count' => count($uploaded), 'documents' => $uploaded]);
