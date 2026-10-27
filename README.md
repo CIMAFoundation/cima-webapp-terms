@@ -2,6 +2,9 @@
 
 Monorepo per gestione documenti legali e pubblicazione su GitHub Pages.
 
+Per le prove locali quando l'app remota non è disponibile, seguire la
+[checklist TODO: avvio dei tre servizi, login e pubblicazione](TODO.md).
+
 ## Struttura
 
 - `frontend/`: backoffice Angular (upload, documenti, ufficiali).
